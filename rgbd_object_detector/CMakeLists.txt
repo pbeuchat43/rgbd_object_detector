@@ -1,0 +1,69 @@
+cmake_minimum_required(VERSION 3.20)
+project(rgbd_object_detector VERSION 0.1.0 LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+add_compile_options(-Wall -Wextra -Wpedantic)
+find_package(ament_cmake REQUIRED)
+find_package(OpenCV REQUIRED COMPONENTS core imgproc)
+find_package(OpenSSL REQUIRED)
+find_package(CUDAToolkit REQUIRED)
+find_package(Threads REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(rclcpp_components REQUIRED)
+find_package(rcl_interfaces REQUIRED)
+find_package(rgbd_camera_interfaces REQUIRED)
+find_package(rgbd_object_detector_interfaces REQUIRED)
+find_package(vision_msgs REQUIRED)
+find_path(TENSORRT_INCLUDE_DIR NvInfer.h PATH_SUFFIXES aarch64-linux-gnu REQUIRED)
+find_library(TENSORRT_LIBRARY nvinfer REQUIRED)
+find_library(ONNX_PARSER_LIBRARY nvonnxparser REQUIRED)
+
+add_library(rgbd_detector_core SHARED src/core.cpp)
+target_include_directories(rgbd_detector_core PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>
+  PRIVATE ${OpenCV_INCLUDE_DIRS})
+target_link_libraries(rgbd_detector_core PRIVATE OpenSSL::Crypto ${OpenCV_LIBS})
+
+add_library(rgbd_detector_tensorrt SHARED src/tensorrt_backend.cpp)
+target_include_directories(rgbd_detector_tensorrt PRIVATE ${TENSORRT_INCLUDE_DIR} ${OpenCV_INCLUDE_DIRS})
+target_link_libraries(rgbd_detector_tensorrt PUBLIC rgbd_detector_core
+  PRIVATE CUDA::cudart ${TENSORRT_LIBRARY} ${OpenCV_LIBS})
+
+add_executable(build_engine src/build_engine.cpp)
+target_include_directories(build_engine PRIVATE ${TENSORRT_INCLUDE_DIR} ${OpenCV_INCLUDE_DIRS})
+target_link_libraries(build_engine PRIVATE rgbd_detector_tensorrt CUDA::cudart
+  ${TENSORRT_LIBRARY} ${ONNX_PARSER_LIBRARY} ${OpenCV_LIBS})
+
+add_library(rgbd_detector_component SHARED src/detector_node.cpp)
+target_link_libraries(rgbd_detector_component PRIVATE rgbd_detector_tensorrt Threads::Threads)
+ament_target_dependencies(rgbd_detector_component PUBLIC rclcpp rclcpp_components rcl_interfaces
+  rgbd_camera_interfaces rgbd_object_detector_interfaces vision_msgs)
+rclcpp_components_register_node(rgbd_detector_component
+  PLUGIN "rgbd_object_detector::DetectorNode" EXECUTABLE detector_node)
+
+install(TARGETS rgbd_detector_core rgbd_detector_tensorrt rgbd_detector_component build_engine
+  EXPORT export_rgbd_object_detector ARCHIVE DESTINATION lib LIBRARY DESTINATION lib
+  RUNTIME DESTINATION lib/${PROJECT_NAME})
+install(DIRECTORY include/ DESTINATION include)
+install(DIRECTORY launch/ DESTINATION share/${PROJECT_NAME}/launch)
+install(DIRECTORY ../models/ DESTINATION share/${PROJECT_NAME}/models)
+if(BUILD_TESTING)
+  enable_testing()
+  add_executable(test_core test/test_core.cpp)
+  target_link_libraries(test_core PRIVATE rgbd_detector_core)
+  add_test(NAME detector_contract COMMAND test_core)
+  add_executable(test_node test/test_node.cpp)
+  target_link_libraries(test_node PRIVATE rgbd_detector_component rgbd_detector_core)
+  ament_target_dependencies(test_node PUBLIC rclcpp rgbd_camera_interfaces rgbd_object_detector_interfaces)
+  add_test(NAME detector_adapter COMMAND test_node)
+  set_tests_properties(detector_adapter PROPERTIES TIMEOUT 30)
+  add_executable(stress_detector test/stress_detector.cpp)
+  target_link_libraries(stress_detector PRIVATE rgbd_detector_component rgbd_detector_tensorrt)
+  ament_target_dependencies(stress_detector PUBLIC rclcpp)
+  add_executable(test_engine test/test_engine.cpp)
+  target_include_directories(test_engine PRIVATE ${TENSORRT_INCLUDE_DIR} ${OpenCV_INCLUDE_DIRS})
+  target_link_libraries(test_engine PRIVATE rgbd_detector_tensorrt CUDA::cudart ${TENSORRT_LIBRARY} ${OpenCV_LIBS})
+endif()
+ament_export_targets(export_rgbd_object_detector HAS_LIBRARY_TARGET)
+ament_export_dependencies(rclcpp rgbd_camera_interfaces rgbd_object_detector_interfaces)
+ament_package()

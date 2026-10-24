@@ -1,0 +1,23 @@
+{
+  "rgbd_object_detector/CMakeLists.txt": "eb54906ff044a71efaefed7a2701d3ce324060682df439b8a673d2be31c9c4d4",
+  "rgbd_object_detector/include/rgbd_object_detector/core.hpp": "b87f957bd44f08a80ad1b240cee33083de057c6643de795de9f29b73350c671c",
+  "rgbd_object_detector/include/rgbd_object_detector/detector_node.hpp": "3c5ad9bab7f176ecdf58825f553f3bd77a1c4b3dabc9c3c23715c71bde302e80",
+  "rgbd_object_detector/include/rgbd_object_detector/tensorrt_support.hpp": "55cb704308dea023e0063965a981eccb4f44d3d7297bdaa3416b2994b8b1d9c4",
+  "rgbd_object_detector/launch/oak_cones.launch.py": "61c113c3d2e2626aff252e907cfd4ead37d829c5c926fbd7b0be85e9ff597869",
+  "rgbd_object_detector/package.xml": "ce884247a148a4784dec885728141b7726c264e44089b69842709c9fb69d9188",
+  "rgbd_object_detector/src/build_engine.cpp": "0290e2a6e2118aa1db667e0170f60db67a67950d8e25594a64c564dcaaffc445",
+  "rgbd_object_detector/src/core.cpp": "4eac7f3844c8e80a6fde457bb0ba60b5b899707fa9cf04d196d556ad414ade8a",
+  "rgbd_object_detector/src/detector_node.cpp": "abf364bd468436d6fc555cffa4e4f76851162c9568b3770ba838e3a4841742dc",
+  "rgbd_object_detector/src/tensorrt_backend.cpp": "889dc0a71a69e1b1c1e86a371d2effa10f47e967a44b3333cd430210abcdaeb3",
+  "rgbd_object_detector/test/stress_detector.cpp": "41f55005cd30e7df5a9ca20ce24ac2c97bcb5237be29766a7aff02aac45c1a8b",
+  "rgbd_object_detector/test/test_core.cpp": "2c98d42312069990c8fbd730ebe5515523928a58023fb82d4d3fcd852d17c2fa",
+  "rgbd_object_detector/test/test_engine.cpp": "ab498c2382497c1953e243bf4b4ca35686d923d1c0379fe61c08c9aacfc861fb",
+  "rgbd_object_detector/test/test_node.cpp": "dc3b03a37f7e2bf9046fa1957a71f6096cb8fe058f2acf92525fe435e57609a5",
+  "rgbd_object_detector_interfaces/CMakeLists.txt": "cf3db96063cfe7c9de03a1f90dc6013d9736740f002a90799df0a4277b8e317d",
+  "rgbd_object_detector_interfaces/msg/Batch.msg": "e7437cafdcb4687541fff668dac186bdd7a20ed1ec18ea73f7616f7c30849a15",
+  "rgbd_object_detector_interfaces/msg/Spatial.msg": "9d25489db508c8631866028859b1509aac34761af23134e9df9b497dfce5964d",
+  "rgbd_object_detector_interfaces/msg/Status.msg": "841686c72c7626adc1dd9a805d4309ed358de13b839b8c741dbce6421e265543",
+  "rgbd_object_detector_interfaces/package.xml": "ccae4b76fea267115e3a8a49a944820c0043220a6b38b623bdacd651af8f867f",
+  "models/cones.json": "35b7470812c53c3e202d4b8e9a878d5473f536fc73b5fa59bf6ac08199ceec8f",
+  "tools/verify_hardware.py": "58f82d4a2c13e24d70f559539fdb4c2130a08d2a32ee15ca1f8b3c86e83d5e8b"
+}
