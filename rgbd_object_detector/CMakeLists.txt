@@ -38,7 +38,9 @@ ament_target_dependencies(build_engine PUBLIC ament_index_cpp)
 
 add_library(rgbd_detector_component SHARED src/detector_node.cpp)
 add_library(rgbd_detector_overlay SHARED src/overlay.cpp)
-target_include_directories(rgbd_detector_overlay PRIVATE ${OpenCV_INCLUDE_DIRS})
+target_include_directories(rgbd_detector_overlay PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>
+  PRIVATE ${OpenCV_INCLUDE_DIRS})
 target_link_libraries(rgbd_detector_overlay PRIVATE rgbd_detector_core Threads::Threads ${OpenCV_LIBS})
 ament_target_dependencies(rgbd_detector_overlay PUBLIC rclcpp rgbd_camera_interfaces rgbd_object_detector_interfaces)
 target_link_libraries(rgbd_detector_component PRIVATE rgbd_detector_tensorrt rgbd_detector_overlay Threads::Threads)
@@ -47,9 +49,10 @@ ament_target_dependencies(rgbd_detector_component PUBLIC ament_index_cpp rclcpp 
 rclcpp_components_register_node(rgbd_detector_component
   PLUGIN "rgbd_object_detector::DetectorNode" EXECUTABLE detector_node)
 
-install(TARGETS rgbd_detector_core rgbd_detector_tensorrt rgbd_detector_overlay rgbd_detector_component build_engine
+install(TARGETS rgbd_detector_core rgbd_detector_tensorrt rgbd_detector_overlay rgbd_detector_component
   EXPORT export_rgbd_object_detector ARCHIVE DESTINATION lib LIBRARY DESTINATION lib
   RUNTIME DESTINATION lib/${PROJECT_NAME})
+install(TARGETS build_engine RUNTIME DESTINATION lib/${PROJECT_NAME})
 install(DIRECTORY include/ DESTINATION include)
 install(DIRECTORY launch/ DESTINATION share/${PROJECT_NAME}/launch)
 install(DIRECTORY ../models/ DESTINATION share/${PROJECT_NAME}/models)
@@ -80,5 +83,6 @@ if(BUILD_TESTING)
   target_link_libraries(infer_image PRIVATE rgbd_detector_tensorrt ${OpenCV_LIBS})
 endif()
 ament_export_targets(export_rgbd_object_detector HAS_LIBRARY_TARGET)
-ament_export_dependencies(rclcpp rgbd_camera_interfaces rgbd_object_detector_interfaces)
+ament_export_dependencies(ament_index_cpp rclcpp rclcpp_components rcl_interfaces
+  rgbd_camera_interfaces rgbd_object_detector_interfaces vision_msgs)
 ament_package()
