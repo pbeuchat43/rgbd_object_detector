@@ -61,3 +61,13 @@ measure model precision/recall, surveyed metric depth accuracy, moving scenes,
 camera-to-display timing, or sustained rates. Invalid spatial results remain
 valid 2D detections with explicit reasons. General-object spatial quality and
 live four-combination acceptance remain integration work.
+
+## Deployment cone artifact
+
+The integration later rebuilt the unchanged cone ONNX on the target Jetson with
+the schema-2 descriptor, avoiding reliance on the older engine's portability
+warning. The production loader and all eight saved-image comparisons passed for
+the new artifact. Its exact hashes and per-image numerical results are retained
+in [fresh-cones-reference.json](fresh-cones-reference.json). This is the cone
+engine used in the live integration campaign; the original comparison above
+remains evidence for legacy compatibility.

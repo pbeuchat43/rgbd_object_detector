@@ -1,0 +1,420 @@
+{
+  "model_id": "cones-2024-standard-20260927",
+  "profile_sha256": "75ab94e47c585c2af8d4e0e0ca8b9901ac0427ffa281f235e3b62a1e82182648",
+  "engine_sha256": "243a991f9ec2fe7980d34beff1f8154972192a0b75632464e35318064b212148",
+  "onnx_sha256": "dcf4d911dee975944a3cca895d92803c3181d8dba670759276c4d71901c8040d",
+  "native_sha256": "b97816afa0636eb9d20d7f9a40d127aed07f1632c737cba0c3f4001c8fafe686",
+  "script_sha256": "140eaa7053b2b11afe0c1473e9755d6f55e02109e5d0c4a91b734b32afe1f17c",
+  "score_tolerance": 0.02,
+  "box_tolerance_px": 2.0,
+  "reference_score_roundoff_tolerance": 1e-06,
+  "cases": [
+    {
+      "image": "blank-640x480.png",
+      "image_sha256": "df715ee9654cfc6cca68592bc5868397dd675c850a648e63c1bb7881bd0e667f",
+      "width": 640,
+      "height": 480,
+      "preprocessing_max_error": 0.0,
+      "native_decoder_equal": true,
+      "raw_box_max_error_px": 1.80377197265625,
+      "raw_score_max_error": 4.887580871582031e-06,
+      "reference_score_range": [
+        7.450580596923828e-07,
+        0.0002804994583129883
+      ],
+      "reference_score_roundoff_count": 0,
+      "reference": {
+        "detections": [],
+        "candidate_count": 0,
+        "nms_candidate_count": 0,
+        "nms_count": 0,
+        "truncated": 0
+      },
+      "native": {
+        "model_id": "cones-2024-standard-20260927",
+        "profile_sha256": "75ab94e47c585c2af8d4e0e0ca8b9901ac0427ffa281f235e3b62a1e82182648",
+        "engine_sha256": "243a991f9ec2fe7980d34beff1f8154972192a0b75632464e35318064b212148",
+        "image_sha256": "df715ee9654cfc6cca68592bc5868397dd675c850a648e63c1bb7881bd0e667f",
+        "candidate_count": 0,
+        "nms_candidate_count": 0,
+        "nms_count": 0,
+        "truncated": 0,
+        "detections": []
+      },
+      "comparisons": [],
+      "unmatched_native": [],
+      "pytorch_onnx_parity": null,
+      "passed": true
+    },
+    {
+      "image": "blank-640x640.png",
+      "image_sha256": "569d72eb8c582ee30ce201dabc6aebd1798cc7d93ecbb3e88be7a09f4d6cfd94",
+      "width": 640,
+      "height": 640,
+      "preprocessing_max_error": 0.0,
+      "native_decoder_equal": true,
+      "raw_box_max_error_px": 1.80377197265625,
+      "raw_score_max_error": 4.887580871582031e-06,
+      "reference_score_range": [
+        7.450580596923828e-07,
+        0.0002804994583129883
+      ],
+      "reference_score_roundoff_count": 0,
+      "reference": {
+        "detections": [],
+        "candidate_count": 0,
+        "nms_candidate_count": 0,
+        "nms_count": 0,
+        "truncated": 0
+      },
+      "native": {
+        "model_id": "cones-2024-standard-20260927",
+        "profile_sha256": "75ab94e47c585c2af8d4e0e0ca8b9901ac0427ffa281f235e3b62a1e82182648",
+        "engine_sha256": "243a991f9ec2fe7980d34beff1f8154972192a0b75632464e35318064b212148",
+        "image_sha256": "569d72eb8c582ee30ce201dabc6aebd1798cc7d93ecbb3e88be7a09f4d6cfd94",
+        "candidate_count": 0,
+        "nms_candidate_count": 0,
+        "nms_count": 0,
+        "truncated": 0,
+        "detections": []
+      },
+      "comparisons": [],
+      "unmatched_native": [],
+      "pytorch_onnx_parity": null,
+      "passed": true
+    },
+    {
+      "image": "bus-640x480.png",
+      "image_sha256": "1921680743d3837d4da6cad8a8892a85bfb93aad59e5edbf225a8b51eeedc8d8",
+      "width": 640,
+      "height": 480,
+      "preprocessing_max_error": 5.960464477539063e-08,
+      "native_decoder_equal": true,
+      "raw_box_max_error_px": 2.9556121826171875,
+      "raw_score_max_error": 0.0048468708992004395,
+      "reference_score_range": [
+        -5.960464477539063e-08,
+        0.46393731236457825
+      ],
+      "reference_score_roundoff_count": 34,
+      "reference": {
+        "detections": [],
+        "candidate_count": 0,
+        "nms_candidate_count": 0,
+        "nms_count": 0,
+        "truncated": 0
+      },
+      "native": {
+        "model_id": "cones-2024-standard-20260927",
+        "profile_sha256": "75ab94e47c585c2af8d4e0e0ca8b9901ac0427ffa281f235e3b62a1e82182648",
+        "engine_sha256": "243a991f9ec2fe7980d34beff1f8154972192a0b75632464e35318064b212148",
+        "image_sha256": "1921680743d3837d4da6cad8a8892a85bfb93aad59e5edbf225a8b51eeedc8d8",
+        "candidate_count": 0,
+        "nms_candidate_count": 0,
+        "nms_count": 0,
+        "truncated": 0,
+        "detections": []
+      },
+      "comparisons": [],
+      "unmatched_native": [],
+      "pytorch_onnx_parity": null,
+      "passed": true
+    },
+    {
+      "image": "bus-640x640.png",
+      "image_sha256": "ab6931e96f45988cc232cafac11c9282c5bd8cb90fe254e873aedf7ec11e6dc6",
+      "width": 640,
+      "height": 640,
+      "preprocessing_max_error": 5.960464477539063e-08,
+      "native_decoder_equal": true,
+      "raw_box_max_error_px": 2.906005859375,
+      "raw_score_max_error": 0.002832263708114624,
+      "reference_score_range": [
+        -5.960464477539063e-08,
+        0.355346143245697
+      ],
+      "reference_score_roundoff_count": 36,
+      "reference": {
+        "detections": [],
+        "candidate_count": 0,
+        "nms_candidate_count": 0,
+        "nms_count": 0,
+        "truncated": 0
+      },
+      "native": {
+        "model_id": "cones-2024-standard-20260927",
+        "profile_sha256": "75ab94e47c585c2af8d4e0e0ca8b9901ac0427ffa281f235e3b62a1e82182648",
+        "engine_sha256": "243a991f9ec2fe7980d34beff1f8154972192a0b75632464e35318064b212148",
+        "image_sha256": "ab6931e96f45988cc232cafac11c9282c5bd8cb90fe254e873aedf7ec11e6dc6",
+        "candidate_count": 0,
+        "nms_candidate_count": 0,
+        "nms_count": 0,
+        "truncated": 0,
+        "detections": []
+      },
+      "comparisons": [],
+      "unmatched_native": [],
+      "pytorch_onnx_parity": null,
+      "passed": true
+    },
+    {
+      "image": "camera-d455.png",
+      "image_sha256": "2ace0309eb4c52180b905d26f92112ee9dfacbaf1b9ceb884628763fc9f1e02d",
+      "width": 640,
+      "height": 480,
+      "preprocessing_max_error": 5.960464477539063e-08,
+      "native_decoder_equal": true,
+      "raw_box_max_error_px": 5.29034423828125,
+      "raw_score_max_error": 0.009068131446838379,
+      "reference_score_range": [
+        -5.960464477539063e-08,
+        0.9511513113975525
+      ],
+      "reference_score_roundoff_count": 128,
+      "reference": {
+        "detections": [
+          {
+            "class_index": 0,
+            "label": "yellow_cone",
+            "score": 0.9511513113975525,
+            "prediction_index": 7334,
+            "x1": 195.73987579345703,
+            "y1": 228.49595260620117,
+            "x2": 254.61809539794922,
+            "y2": 292.7104682922363
+          },
+          {
+            "class_index": 1,
+            "label": "blue_cone",
+            "score": 0.8719853162765503,
+            "prediction_index": 7107,
+            "x1": 421.5787811279297,
+            "y1": 171.27789688110352,
+            "x2": 465.9383087158203,
+            "y2": 222.14333724975586
+          }
+        ],
+        "candidate_count": 14,
+        "nms_candidate_count": 14,
+        "nms_count": 2,
+        "truncated": 0
+      },
+      "native": {
+        "model_id": "cones-2024-standard-20260927",
+        "profile_sha256": "75ab94e47c585c2af8d4e0e0ca8b9901ac0427ffa281f235e3b62a1e82182648",
+        "engine_sha256": "243a991f9ec2fe7980d34beff1f8154972192a0b75632464e35318064b212148",
+        "image_sha256": "2ace0309eb4c52180b905d26f92112ee9dfacbaf1b9ceb884628763fc9f1e02d",
+        "candidate_count": 14,
+        "nms_candidate_count": 14,
+        "nms_count": 2,
+        "truncated": 0,
+        "detections": [
+          {
+            "class_index": 0,
+            "label": "yellow_cone",
+            "score": 0.9515048265457153,
+            "x1": 195.75,
+            "y1": 228.515625,
+            "x2": 254.640625,
+            "y2": 292.7109375,
+            "prediction_index": 7334
+          },
+          {
+            "class_index": 1,
+            "label": "blue_cone",
+            "score": 0.8710389137268066,
+            "x1": 421.578125,
+            "y1": 171.28125,
+            "x2": 465.90625,
+            "y2": 222.140625,
+            "prediction_index": 7107
+          }
+        ]
+      },
+      "comparisons": [
+        {
+          "label": "yellow_cone",
+          "matched": true,
+          "box_max_error_px": 0.02252960205078125,
+          "score_error": 0.0003535151481628418
+        },
+        {
+          "label": "blue_cone",
+          "matched": true,
+          "box_max_error_px": 0.0320587158203125,
+          "score_error": 0.0009464025497436523
+        }
+      ],
+      "unmatched_native": [],
+      "pytorch_onnx_parity": null,
+      "passed": true
+    },
+    {
+      "image": "camera-oak.png",
+      "image_sha256": "b2f5f0cbc2630cc1b394076ff15431c02e58ce406ae30b6ccd08ad2a1c8e7f62",
+      "width": 640,
+      "height": 640,
+      "preprocessing_max_error": 5.960464477539063e-08,
+      "native_decoder_equal": true,
+      "raw_box_max_error_px": 3.22821044921875,
+      "raw_score_max_error": 0.0019251704216003418,
+      "reference_score_range": [
+        -5.960464477539063e-08,
+        0.9458597898483276
+      ],
+      "reference_score_roundoff_count": 85,
+      "reference": {
+        "detections": [
+          {
+            "class_index": 0,
+            "label": "yellow_cone",
+            "score": 0.9458597898483276,
+            "prediction_index": 4268,
+            "x1": 215.88355255126953,
+            "y1": 397.1227264404297,
+            "x2": 252.43401336669922,
+            "y2": 453.0607452392578
+          },
+          {
+            "class_index": 1,
+            "label": "blue_cone",
+            "score": 0.8323383331298828,
+            "prediction_index": 3164,
+            "x1": 343.40357971191406,
+            "y1": 299.607177734375,
+            "x2": 372.16404724121094,
+            "y2": 346.17620849609375
+          }
+        ],
+        "candidate_count": 16,
+        "nms_candidate_count": 16,
+        "nms_count": 2,
+        "truncated": 0
+      },
+      "native": {
+        "model_id": "cones-2024-standard-20260927",
+        "profile_sha256": "75ab94e47c585c2af8d4e0e0ca8b9901ac0427ffa281f235e3b62a1e82182648",
+        "engine_sha256": "243a991f9ec2fe7980d34beff1f8154972192a0b75632464e35318064b212148",
+        "image_sha256": "b2f5f0cbc2630cc1b394076ff15431c02e58ce406ae30b6ccd08ad2a1c8e7f62",
+        "candidate_count": 16,
+        "nms_candidate_count": 16,
+        "nms_count": 2,
+        "truncated": 0,
+        "detections": [
+          {
+            "class_index": 0,
+            "label": "yellow_cone",
+            "score": 0.9458003044128418,
+            "x1": 215.875,
+            "y1": 397.140625,
+            "x2": 252.4375,
+            "y2": 453.046875,
+            "prediction_index": 4268
+          },
+          {
+            "class_index": 1,
+            "label": "blue_cone",
+            "score": 0.8322356343269348,
+            "x1": 343.3984375,
+            "y1": 299.609375,
+            "x2": 372.171875,
+            "y2": 346.171875,
+            "prediction_index": 3164
+          }
+        ]
+      },
+      "comparisons": [
+        {
+          "label": "yellow_cone",
+          "matched": true,
+          "box_max_error_px": 0.0178985595703125,
+          "score_error": 5.9485435485839844e-05
+        },
+        {
+          "label": "blue_cone",
+          "matched": true,
+          "box_max_error_px": 0.0078277587890625,
+          "score_error": 0.00010269880294799805
+        }
+      ],
+      "unmatched_native": [],
+      "pytorch_onnx_parity": null,
+      "passed": true
+    },
+    {
+      "image": "zidane-640x480.png",
+      "image_sha256": "d01d78f7ec6ffce5feadff7113f35f25af7deadd9bb6784326d41ec24137c49d",
+      "width": 640,
+      "height": 480,
+      "preprocessing_max_error": 5.960464477539063e-08,
+      "native_decoder_equal": true,
+      "raw_box_max_error_px": 3.61083984375,
+      "raw_score_max_error": 0.00254705548286438,
+      "reference_score_range": [
+        -5.960464477539063e-08,
+        0.4604894518852234
+      ],
+      "reference_score_roundoff_count": 71,
+      "reference": {
+        "detections": [],
+        "candidate_count": 0,
+        "nms_candidate_count": 0,
+        "nms_count": 0,
+        "truncated": 0
+      },
+      "native": {
+        "model_id": "cones-2024-standard-20260927",
+        "profile_sha256": "75ab94e47c585c2af8d4e0e0ca8b9901ac0427ffa281f235e3b62a1e82182648",
+        "engine_sha256": "243a991f9ec2fe7980d34beff1f8154972192a0b75632464e35318064b212148",
+        "image_sha256": "d01d78f7ec6ffce5feadff7113f35f25af7deadd9bb6784326d41ec24137c49d",
+        "candidate_count": 0,
+        "nms_candidate_count": 0,
+        "nms_count": 0,
+        "truncated": 0,
+        "detections": []
+      },
+      "comparisons": [],
+      "unmatched_native": [],
+      "pytorch_onnx_parity": null,
+      "passed": true
+    },
+    {
+      "image": "zidane-640x640.png",
+      "image_sha256": "1c3cef1da098d222ed1e3beb3d9a010526b8b48d4ab975949a3c6597d62a666a",
+      "width": 640,
+      "height": 640,
+      "preprocessing_max_error": 5.960464477539063e-08,
+      "native_decoder_equal": true,
+      "raw_box_max_error_px": 3.5540771484375,
+      "raw_score_max_error": 0.005136966705322266,
+      "reference_score_range": [
+        -5.960464477539063e-08,
+        0.4506664276123047
+      ],
+      "reference_score_roundoff_count": 73,
+      "reference": {
+        "detections": [],
+        "candidate_count": 0,
+        "nms_candidate_count": 0,
+        "nms_count": 0,
+        "truncated": 0
+      },
+      "native": {
+        "model_id": "cones-2024-standard-20260927",
+        "profile_sha256": "75ab94e47c585c2af8d4e0e0ca8b9901ac0427ffa281f235e3b62a1e82182648",
+        "engine_sha256": "243a991f9ec2fe7980d34beff1f8154972192a0b75632464e35318064b212148",
+        "image_sha256": "1c3cef1da098d222ed1e3beb3d9a010526b8b48d4ab975949a3c6597d62a666a",
+        "candidate_count": 0,
+        "nms_candidate_count": 0,
+        "nms_count": 0,
+        "truncated": 0,
+        "detections": []
+      },
+      "comparisons": [],
+      "unmatched_native": [],
+      "pytorch_onnx_parity": null,
+      "passed": true
+    }
+  ],
+  "passed": true
+}

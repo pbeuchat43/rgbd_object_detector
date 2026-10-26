@@ -130,3 +130,15 @@ interval, observer receipt age, process layout, drop counts and product CPU/RSS.
 RSS sums across processes include shared pages; they are not PSS. No complete
 delivery, hard latency, end-to-end zero-copy, recall or metric accuracy guarantee
 follows from these short runs.
+
+
+## Selectable models and exact overlays (27 October 2026)
+
+The [model record](evidence/2026-10-27-models/README.md) covers pinned export,
+reference parity, descriptor/artifact rejection and the target-built deployment
+cone engine. The [overlay record](evidence/2026-10-27-overlay/README.md) covers
+native worker/adapter behavior and downstream linking. The sibling
+`robot_composition` repository records actual four-combination integration,
+higher-rate measurements and their physical-observation limits against camera
+revision `0f4b82958f0d7798f0bf911641d0aa67084cc927`. Earlier camera references above
+identify the original standalone milestone, not the current integration pin.
