@@ -40,8 +40,9 @@ source install/setup.bash
 ```
 
 The first command builds interfaces without CUDA, TensorRT or a camera SDK.
-`models/cones.json` records the currently compiled profile; it is not a generic
-runtime model-selection file. Changing that JSON alone does not replace a model.
+`model_profile` selects the validated contract shared by building and runtime.
+The default remains `models/cones.json`; [model profiles](model-profiles.md)
+documents COCO export, artifact identity and saved-image verification.
 
 ## Explicit engine build
 
@@ -96,7 +97,7 @@ export RMW_IMPLEMENTATION=rmw_fastrtps_cpp ROS_LOG_DIR=/absolute/task/ros-logs
 colcon test --packages-select rgbd_object_detector --return-code-on-test-failure \
   --event-handlers console_direct+
 colcon test-result --verbose
-build/rgbd_object_detector/test_engine /absolute/models/cones.engine
+build/rgbd_object_detector/test_engine /absolute/models/cones.engine models/cones.json
 python3 src/rgbd_object_detector/tools/verify_hardware.py \
   --device-id YOUR_DEVICE_ID --engine /absolute/models/cones.engine \
   --test-binaries build/rgbd_object_detector --output /absolute/task/hardware-results

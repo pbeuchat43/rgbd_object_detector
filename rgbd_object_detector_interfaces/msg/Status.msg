@@ -4,6 +4,7 @@ string detail
 bool backend_ready
 string model_id
 string model_sha256
+string model_profile_sha256
 string engine_sha256
 string inference_backend
 string source_id

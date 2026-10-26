@@ -8,6 +8,7 @@ string calibration_id
 string camera_backend
 string model_id
 string model_sha256
+string model_profile_sha256
 string engine_sha256
 string inference_backend
 string preprocessing
@@ -17,6 +18,9 @@ uint32 model_width
 uint32 model_height
 float64 model_to_source_x
 float64 model_to_source_y
+# source_x = model_x * model_to_source_x + model_to_source_offset_x (same for y).
+float64 model_to_source_offset_x
+float64 model_to_source_offset_y
 float64 score_threshold
 float64 iou_threshold
 float64 roi_fraction

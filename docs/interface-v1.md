@@ -29,14 +29,16 @@ No queue grows with runtime; middleware/executor queues are additional depth 1.
 
 ## Model and spatial semantics
 
-The first compiled model profile is defined by `models/cones.json`. Engine building
+Validated selectable model profiles are defined by `models/cones.json` and
+`models/yolov8n-coco80.json`; see [model profiles](model-profiles.md). Engine building
 is an explicit offline step, not an automatic node-start operation. Runtime checks
 engine SHA-256, originating model SHA-256, TensorRT/CUDA runtime, architecture,
 GPU identity/compute capability, and every I/O tensor's shape/type/layout/location.
 The backend interface can be replaced without changing acquisition or geometry.
 
-Preprocessing bilinearly stretches the source RGB image to 640x640, converts BGR
-to RGB, and scales to [0,1] NCHW float32. Decoding reverses that scale into source
+Cone preprocessing retains the original bilinear stretch to 640x640. The COCO
+profile uses centred letterboxing with padding 114. Both convert BGR to RGB and
+scale to [0,1] NCHW float32. Decoding reverses the declared transform into source
 pixel coordinates. Boxes are continuous edge coordinates clipped to [0,width] and
 [0,height]; width/height are edge differences. Pixel centres are integer coordinates.
 NMS is class-aware, ordered by descending score with deterministic index tie-breaks.
@@ -54,7 +56,7 @@ or accuracy bounds. Confidence remains the model's class score.
 ## Output
 
 `~/batches` is an atomic `Batch`: original capture/depth/calibration identity,
-model/engine/backend identity, preprocessing transform, stage timing and a
+model/profile/engine/backend identity, preprocessing scale and offsets, stage timing and a
 standard `vision_msgs/Detection2DArray` plus one `Spatial` entry per detection.
 Thresholds, region/depth settings and the output age limit travel with each batch.
 The spatial entry's `detection_index` is scoped to this batch. Standard detection
@@ -81,8 +83,10 @@ not hard deadlines. CUDA synchronization cannot be forcibly preempted by this no
 
 ## Parameters
 
-All are read-only after construction. `engine_path` is required; its manifest is
-the same path plus `.json`. `score_threshold=0.5`, `iou_threshold=0.5`,
+All are read-only after construction. `model_profile` defaults to the installed
+`models/cones.json`. `engine_path` is required; its manifest is the same path plus
+`.json`. Detection defaults come from the selected validated profile; both current
+profiles declare `score_threshold=0.5`, `iou_threshold=0.5`,
 `pre_nms_limit=1000` (1..8400), `max_detections=20` (1..100),
 `roi_fraction=0.5`, `min_depth_m=0.1`, `max_depth_m=5.0`,
 `min_valid_pixels=5`, `min_valid_fraction=0.05`, `max_frame_age_ms=500`

@@ -65,15 +65,21 @@ void DepthView::validate() const {
 SpatialEstimate::SpatialEstimate()
     : xyz{NAN, NAN, NAN}, depth_mad_m(NAN) {}
 
-void preprocess(const ImageView& bgr, float* destination, size_t elements) {
+void preprocess(const ImageView& bgr, float* destination, size_t elements, const ModelProfile& profile) {
   bgr.validate(3);
   require(destination && elements == kInputElements, "incorrect input tensor storage");
   // OpenCV's input view is const in use; every operation writes separate storage.
   const cv::Mat source(bgr.height, bgr.width, CV_8UC3, const_cast<uint8_t*>(bgr.data), bgr.step);
-  cv::Mat resized, rgb, normalized;
-  if (bgr.width == kModelWidth && bgr.height == kModelHeight) resized = source;
-  else cv::resize(source, resized, cv::Size(kModelWidth, kModelHeight), 0, 0, cv::INTER_LINEAR);
-  cv::cvtColor(resized, rgb, cv::COLOR_BGR2RGB);
+  const auto transform = image_transform(profile, bgr.width, bgr.height);
+  cv::Mat resized, padded, rgb, normalized;
+  if (int(bgr.width) == transform.resized_width && int(bgr.height) == transform.resized_height) resized = source;
+  else cv::resize(source, resized, cv::Size(transform.resized_width, transform.resized_height), 0, 0, cv::INTER_LINEAR);
+  if (transform.resized_width != kModelWidth || transform.resized_height != kModelHeight) {
+    cv::copyMakeBorder(resized, padded, transform.top, kModelHeight - transform.resized_height - transform.top,
+                       transform.left, kModelWidth - transform.resized_width - transform.left,
+                       cv::BORDER_CONSTANT, cv::Scalar::all(profile.padding_value));
+  } else padded = resized;
+  cv::cvtColor(padded, rgb, cv::COLOR_BGR2RGB);
   rgb.convertTo(normalized, CV_32FC3, 1.0 / 255.0);
   std::array<cv::Mat, 3> planes;
   for (size_t channel = 0; channel < 3; ++channel)
@@ -83,29 +89,31 @@ void preprocess(const ImageView& bgr, float* destination, size_t elements) {
 }
 
 Decoded decode(const float* output, size_t elements, uint32_t source_width,
-               uint32_t source_height, const Config& config) {
+               uint32_t source_height, const Config& config, const ModelProfile& profile) {
   config.validate();
-  require(output && elements == kOutputElements, "incorrect output tensor shape");
-  require(source_width > 0 && source_width <= 1920 && source_height > 0 && source_height <= 1080,
-          "invalid source dimensions");
+  require(!profile.classes.empty() && profile.classes.size() <= 256 &&
+          output && elements == profile.output_elements(), "incorrect output tensor shape");
+  const auto transform = image_transform(profile, source_width, source_height);
   std::vector<Box> candidates;
   candidates.reserve(kPredictions);
-  const double sx = double(source_width) / kModelWidth, sy = double(source_height) / kModelHeight;
   for (uint32_t index = 0; index < kPredictions; ++index) {
-    std::array<double, 6> value;
+    std::array<double, 4> value;
     for (size_t channel = 0; channel < value.size(); ++channel) {
       value[channel] = output[channel * kPredictions + index];
       require(std::isfinite(value[channel]), "nonfinite inference output");
     }
-    require(value[4] >= 0 && value[4] <= 1 && value[5] >= 0 && value[5] <= 1,
-            "class score outside [0,1]");
-    const uint32_t label = value[5] > value[4] ? 1 : 0;
-    const auto score = value[4 + label];
+    uint32_t label = 0;
+    double score = -1;
+    for (size_t channel = 0; channel < profile.classes.size(); ++channel) {
+      const double candidate = output[(4 + channel) * kPredictions + index];
+      require(finite_between(candidate, 0, 1), "class score outside [0,1]");
+      if (candidate > score) { score = candidate; label = channel; }
+    }
     if (score < config.score_threshold || value[2] <= 0 || value[3] <= 0) continue;
-    Box box{std::clamp((value[0] - value[2] / 2) * sx, 0.0, double(source_width)),
-            std::clamp((value[1] - value[3] / 2) * sy, 0.0, double(source_height)),
-            std::clamp((value[0] + value[2] / 2) * sx, 0.0, double(source_width)),
-            std::clamp((value[1] + value[3] / 2) * sy, 0.0, double(source_height)),
+    Box box{std::clamp((value[0] - value[2] / 2) * transform.scale_x + transform.offset_x, 0.0, double(source_width)),
+            std::clamp((value[1] - value[3] / 2) * transform.scale_y + transform.offset_y, 0.0, double(source_height)),
+            std::clamp((value[0] + value[2] / 2) * transform.scale_x + transform.offset_x, 0.0, double(source_width)),
+            std::clamp((value[1] + value[3] / 2) * transform.scale_y + transform.offset_y, 0.0, double(source_height)),
             score, label, index};
     if (box.x2 > box.x1 && box.y2 > box.y1) candidates.push_back(box);
   }

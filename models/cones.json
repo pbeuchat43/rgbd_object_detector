@@ -1,12 +1,13 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "model_id": "cones-2024-standard-20260927",
   "onnx_sha256": "dcf4d911dee975944a3cca895d92803c3181d8dba670759276c4d71901c8040d",
   "input": {"name": "images", "dtype": "float32", "shape": [1, 3, 640, 640]},
   "output": {"name": "output0", "dtype": "float32", "shape": [1, 6, 8400]},
   "classes": ["yellow_cone", "blue_cone"],
-  "preprocessing": "BGR8 to RGB float32 NCHW /255; bilinear STRETCH to 640x640",
-  "decoder": "YOLOv8 xywh in model pixels, two class scores, no objectness, class-aware NMS",
+  "preprocessing": "bgr8_to_rgb_nchw_div255_bilinear",
+  "resize": {"mode": "stretch", "padding_value": 114},
+  "decoder": "yolov8_xywh_class_scores",
   "defaults": {"score_threshold": 0.5, "iou_threshold": 0.5, "pre_nms_limit": 1000, "max_detections": 20},
   "backend": "TensorRT 10, target-built FP16 engine with float32 linear device I/O",
   "licensing": "See NOTICE.md; descriptor does not license or distribute weights."

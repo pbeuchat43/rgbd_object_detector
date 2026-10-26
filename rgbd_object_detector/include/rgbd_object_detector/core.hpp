@@ -1,5 +1,6 @@
 // Copyright (c) 2026 Paul N. Beuchat. MIT License. See NOTICE.md.
 #pragma once
+#include "rgbd_object_detector/model_profile.hpp"
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -8,12 +9,6 @@
 #include <vector>
 
 namespace rgbd_object_detector {
-inline constexpr int kModelWidth = 640, kModelHeight = 640, kPredictions = 8400;
-inline constexpr size_t kInputElements = 3 * kModelWidth * kModelHeight;
-inline constexpr size_t kOutputElements = 6 * kPredictions;
-inline constexpr const char* kModelId = "cones-2024-standard-20260927";
-inline constexpr const char* kModelSha256 = "dcf4d911dee975944a3cca895d92803c3181d8dba670759276c4d71901c8040d";
-inline constexpr std::array<const char*, 2> kClassNames{"yellow_cone", "blue_cone"};
 inline constexpr const char* kSpatialMethod = "central_roi_median_z_box_center";
 
 struct Config {
@@ -57,9 +52,9 @@ struct SpatialEstimate {
 };
 
 // Writes exactly kInputElements floats. The source storage is never modified.
-void preprocess(const ImageView& bgr, float* destination, size_t elements);
+void preprocess(const ImageView& bgr, float* destination, size_t elements, const ModelProfile& profile);
 Decoded decode(const float* output, size_t elements, uint32_t source_width,
-               uint32_t source_height, const Config& config);
+               uint32_t source_height, const Config& config, const ModelProfile& profile);
 SpatialEstimate estimate(const Box& box, const DepthView& depth, const Config& config);
 int64_t monotonic_ns();
 std::string local_clock_domain();
@@ -68,7 +63,7 @@ std::string sha256_bytes(const void* data, size_t bytes);
 
 struct BackendIdentity {
   std::string name;
-  std::string model_id = kModelId, model_sha256 = kModelSha256, engine_sha256;
+  std::string model_id, model_sha256, engine_sha256, profile_sha256;
 };
 // A single worker owns this object and its buffers. infer() completes transfers
 // before returning; returned output remains valid until the next infer/destruction.
@@ -79,5 +74,5 @@ class InferenceBackend {
   virtual const float* infer() = 0;
   virtual BackendIdentity identity() const = 0;
 };
-std::unique_ptr<InferenceBackend> make_tensorrt_backend(const std::string& engine_path);
+std::unique_ptr<InferenceBackend> make_tensorrt_backend(const std::string& engine_path, const ModelProfile& profile);
 }  // namespace rgbd_object_detector

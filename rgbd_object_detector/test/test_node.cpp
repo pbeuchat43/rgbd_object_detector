@@ -19,11 +19,12 @@ void check(bool condition, const char* message) { if (!condition) throw std::run
 
 struct Control {
   std::atomic<bool> hold{false}, fail{false}, destroyed{false};
-  std::atomic<int> entered{0}, delay_ms{0};
+  std::atomic<int> entered{0}, delay_ms{0}, class_index{0};
 };
 class FixtureBackend : public InferenceBackend {
  public:
-  explicit FixtureBackend(std::shared_ptr<Control> control) : control_(std::move(control)), input_(kInputElements), output_(kOutputElements) {}
+  FixtureBackend(std::shared_ptr<Control> control, const ModelProfile& profile)
+      : control_(std::move(control)), input_(kInputElements), output_(profile.output_elements()), profile_(profile) {}
   ~FixtureBackend() override { control_->destroyed = true; }
   float* input() override { return input_.data(); }
   const float* infer() override {
@@ -32,16 +33,20 @@ class FixtureBackend : public InferenceBackend {
     std::this_thread::sleep_for(std::chrono::milliseconds(control_->delay_ms.load()));
     if (control_->fail) throw std::runtime_error("fixture_backend_failure");
     std::fill(output_.begin(), output_.end(), 0);
-    if (input_[0] > 0) {
-      const float box[]{320,320,160,160,.9F,.1F};
-      for (int channel = 0; channel < 6; ++channel) output_[channel*kPredictions] = box[channel];
+    if (input_[320*640+320] > 0) {
+      const float box[]{320,320,160,160};
+      for (int channel = 0; channel < 4; ++channel) output_[channel*kPredictions] = box[channel];
+      output_.at((4 + control_->class_index) * kPredictions) = .9F;
     }
     return output_.data();
   }
-  BackendIdentity identity() const override { return {"synthetic_fixture", kModelId, kModelSha256, "fixture_engine"}; }
+  BackendIdentity identity() const override {
+    return {"synthetic_fixture", profile_.model_id, profile_.onnx_sha256, "fixture_engine", profile_.profile_sha256};
+  }
  private:
   std::shared_ptr<Control> control_;
   std::vector<float> input_, output_;
+  ModelProfile profile_;
 };
 
 Frame fixture(uint64_t sequence, uint16_t depth = 2000, const std::string& generation = "A", bool empty = false) {
@@ -74,10 +79,13 @@ Frame fixture(uint64_t sequence, uint16_t depth = 2000, const std::string& gener
 
 class Harness {
  public:
-  explicit Harness(double age = 500.0) : control(std::make_shared<Control>()) {
+  explicit Harness(double age = 500.0, const std::string& profile_path = "") : control(std::make_shared<Control>()) {
     auto options = rclcpp::NodeOptions().use_intra_process_comms(true)
       .parameter_overrides({{"engine_path", "fixture"}, {"max_frame_age_ms", age}});
-    detector = std::make_shared<DetectorNode>(options, [state=control](const std::string&) { return std::make_unique<FixtureBackend>(state); });
+    if (!profile_path.empty()) options.append_parameter_override("model_profile", profile_path);
+    detector = std::make_shared<DetectorNode>(options, [state=control](const std::string&, const ModelProfile& profile) {
+      return std::make_unique<FixtureBackend>(state, profile);
+    });
     observer = std::make_shared<rclcpp::Node>("detector_fixture", rclcpp::NodeOptions().use_intra_process_comms(true));
     publisher = observer->create_publisher<Frame>("/frames", rclcpp::SensorDataQoS().keep_last(1));
     batch_sub = observer->create_subscription<Batch>("/rgbd_object_detector/batches", rclcpp::SensorDataQoS().keep_last(1),
@@ -190,10 +198,30 @@ void expiry_and_failure() {
     check(h.control->entered == 1 && h.batches.empty(), "failed backend restarted implicitly");
   }
 }
+void model_selection(const std::string& path) {
+  const auto profile = load_model_profile(path);
+  check(profile.classes.size() == 80 && profile.classes.back() == "toothbrush", "COCO catalogue changed");
+  Harness h(500, path);
+  h.control->class_index = 79;
+  h.send(fixture(1, 0)); h.until([&] { return h.batches.size() == 1; }, "selected-model batch missing");
+  const auto& batch = *h.batches[0];
+  check(batch.model_id == profile.model_id && batch.model_sha256 == profile.onnx_sha256 &&
+        batch.model_profile_sha256 == profile.profile_sha256 && h.status->model_id == profile.model_id,
+        "model selection identity not propagated");
+  check(batch.detections.detections[0].results[0].hypothesis.class_id == "toothbrush" &&
+        batch.detections.detections[0].bbox.size_y == 80 && batch.model_to_source_offset_y == -40 &&
+        !batch.spatial[0].valid, "selected model labels/letterbox/invalid depth semantics wrong");
+  check(!h.detector->set_parameters({rclcpp::Parameter("model_profile", "other")})[0].successful,
+        "live model change accepted");
+  h.send(fixture(2, 2000, "A", true)); h.until([&] { return h.batches.size() == 2; }, "selected-model empty batch missing");
+  check(h.batches[1]->detections.detections.empty(), "letterbox padding fabricated an empty-scene detection");
+}
 int main(int argc, char** argv) {
   rclcpp::init(argc, argv);
   try {
     output_and_validation(); bounded_exact_association(); generation_during_inference(); expiry_and_failure();
+    check(argc == 2, "COCO model profile path required");
+    model_selection(argv[1]);
     rclcpp::shutdown();
     std::cout << "detector adapter checks passed (synthetic backend, composed ROS)\n";
     return 0;

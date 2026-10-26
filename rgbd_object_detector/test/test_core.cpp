@@ -2,6 +2,8 @@
 #include "rgbd_object_detector/core.hpp"
 #include <algorithm>
 #include <cmath>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <stdexcept>
 #include <vector>
@@ -16,8 +18,34 @@ void prediction(std::vector<float>& out, int index, float x, float y, float w, f
   const float values[]{x,y,w,h,yellow,blue};
   for (int channel = 0; channel < 6; ++channel) out[channel * kPredictions + index] = values[channel];
 }
-int main() {
+int main(int argc, char** argv) {
   try {
+    check(argc == 2, "profile path required" );
+    const auto profile = load_model_profile(argv[1]);
+    check(profile.accepts_legacy_manifest(), "original cone engine compatibility lost");
+    std::ifstream source(argv[1]);
+    const std::string descriptor((std::istreambuf_iterator<char>(source)), std::istreambuf_iterator<char>());
+    const auto temporary = std::filesystem::temp_directory_path() / ("detector-profile-" + std::to_string(monotonic_ns()) + ".json");
+    for (const auto& replacement : std::vector<std::pair<std::string, std::string>>{
+        {"\"schema_version\": 2", "\"schema_version\": 99"},
+        {"[1, 6, 8400]", "[1, 7, 8400]"},
+        {"[1, 3, 640, 640]", "[1, 3, 320, 640]"},
+        {"\"blue_cone\"", "\"yellow_cone\""},
+        {"\"stretch\"", "\"unknown\""},
+        {"\"pre_nms_limit\": 1000", "\"pre_nms_limit\": 99999"},
+        {"\"score_threshold\": 0.5", "\"score_threshold\": \"invalid\""},
+        {"yolov8_xywh_class_scores", "yolov5_objectness"},
+        {profile.onnx_sha256, "unverified"}}) {
+      auto modified = descriptor;
+      const auto position = modified.find(replacement.first);
+      check(position != std::string::npos, "profile rejection fixture no longer matches descriptor");
+      modified.replace(position, replacement.first.size(), replacement.second);
+      { std::ofstream file(temporary); file << modified; }
+      bool rejected = false;
+      try { load_model_profile(temporary.string()); } catch (const std::exception&) { rejected = true; }
+      std::filesystem::remove(temporary);
+      check(rejected, "invalid serialized model profile accepted");
+    }
     Config config; config.validate();
     auto invalid = config; invalid.roi_fraction = NAN;
     rejects([&] { invalid.validate(); }, "nonfinite setting accepted");
@@ -33,41 +61,80 @@ int main() {
     }
     const auto original = bgr;
     std::vector<float> input(kInputElements);
-    preprocess({bgr.data(), bgr.size(), 4, 2, 16}, input.data(), input.size());
+    preprocess({bgr.data(), bgr.size(), 4, 2, 16}, input.data(), input.size(), profile);
     check(bgr == original, "preprocess mutated shared source");
     check(std::abs(input[0] - 30.0/255) < 1e-6 && std::abs(input[640*640] - 20.0/255) < 1e-6 &&
           std::abs(input.back() - 10.0/255) < 1e-6, "BGR/RGB scaling/stride/layout wrong");
-    rejects([&] { preprocess({bgr.data(), bgr.size()-1, 4, 2, 16}, input.data(), input.size()); }, "short image accepted");
+    rejects([&] { preprocess({bgr.data(), bgr.size()-1, 4, 2, 16}, input.data(), input.size(), profile); }, "short image accepted");
 
-    std::vector<float> output(kOutputElements, 0);
+    std::vector<float> output(profile.output_elements(), 0);
     prediction(output, 0, 320, 320, 160, 160, .9F, .1F);
     prediction(output, 1, 320, 320, 160, 160, .8F, .1F); // suppressed, same class
     prediction(output, 2, 320, 320, 160, 160, .1F, .85F); // retained, different class
     prediction(output, 3, 100, 100, 40, 40, .5F, .1F); // inclusive threshold
-    auto decoded = decode(output.data(), output.size(), 1280, 480, config);
+    auto decoded = decode(output.data(), output.size(), 1280, 480, config, profile);
     check(decoded.candidate_count == 4 && decoded.nms_count == 3 && decoded.boxes.size() == 3 &&
           !decoded.truncated, "class-aware NMS or inclusive threshold wrong");
     const auto box = decoded.boxes[0];
     check(box.x1 == 480 && box.x2 == 800 && box.y1 == 180 && box.y2 == 300,
           "model-to-source anisotropic scale wrong");
     config.max_detections = 1;
-    decoded = decode(output.data(), output.size(), 640, 640, config);
+    decoded = decode(output.data(), output.size(), 640, 640, config, profile);
     check(decoded.truncated && decoded.boxes.size() == 1 && decoded.nms_count == 3, "output truncation hidden");
     config.pre_nms_limit = 2;
-    decoded = decode(output.data(), output.size(), 640, 640, config);
+    decoded = decode(output.data(), output.size(), 640, 640, config, profile);
     check(decoded.truncated && decoded.candidate_count == 4 && decoded.nms_candidate_count == 2,
           "candidate truncation hidden");
     config = Config{};
     std::fill(output.begin(), output.end(), 0);
     prediction(output, 0, 0, 0, 40, 40, .9F, .1F);
-    decoded = decode(output.data(), output.size(), 640, 640, config);
+    decoded = decode(output.data(), output.size(), 640, 640, config, profile);
     check(decoded.boxes[0].x1 == 0 && decoded.boxes[0].x2 == 20, "box clipping wrong");
     output[4*kPredictions] = 1.1F;
-    rejects([&] { decode(output.data(), output.size(), 640, 640, config); }, "invalid score accepted");
+    rejects([&] { decode(output.data(), output.size(), 640, 640, config, profile); }, "invalid score accepted");
     output[4*kPredictions] = NAN;
-    rejects([&] { decode(output.data(), output.size(), 640, 640, config); }, "nonfinite output accepted");
+    rejects([&] { decode(output.data(), output.size(), 640, 640, config, profile); }, "nonfinite output accepted");
     std::fill(output.begin(), output.end(), 0);
-    check(decode(output.data(), output.size(), 640, 640, config).boxes.empty(), "empty batch fabricated detections");
+    check(decode(output.data(), output.size(), 640, 640, config, profile).boxes.empty(), "empty batch fabricated detections");
+
+    // A synthetic 80-class contract exercises the general decoder independently
+    // of weights. Actual COCO class mapping and inference need reference images.
+    auto general = profile;
+    general.resize_mode = "letterbox";
+    general.classes.clear();
+    for (int label = 0; label < 80; ++label) general.classes.push_back("fixture_" + std::to_string(label));
+    general.validate();
+    check(!general.accepts_legacy_manifest(), "non-cone contract accepted legacy manifest");
+    auto transform = image_transform(general, 640, 480);
+    check(transform.resized_width == 640 && transform.resized_height == 480 && transform.top == 80 &&
+          transform.scale_x == 1 && transform.scale_y == 1 && transform.offset_y == -80, "D455 letterbox transform wrong");
+    transform = image_transform(general, 640, 640);
+    check(transform.top == 0 && transform.left == 0 && transform.scale_x == 1, "OAK square letterbox wrong");
+    transform = image_transform(general, 480, 641);
+    check(transform.resized_width == 479 && transform.left == 80 && transform.resized_height == 640,
+          "odd letterbox rounding/padding wrong");
+    preprocess({bgr.data(), bgr.size(), 4, 2, 16}, input.data(), input.size(), general);
+    check(std::abs(input[0] - 114.0/255) < 1e-6 && std::abs(input[160*640] - 30.0/255) < 1e-6 &&
+          std::abs(input.back() - 114.0/255) < 1e-6 && bgr == original, "letterbox pixels/layout/source ownership wrong");
+    output.assign(general.output_elements(), 0);
+    prediction(output, 0, 320, 320, 160, 160, .1F, .1F);
+    output[83*kPredictions] = .9F;  // last class must be decoded, not silently ignored
+    decoded = decode(output.data(), output.size(), 640, 480, config, general);
+    check(decoded.boxes.size() == 1 && decoded.boxes[0].class_index == 79 &&
+          decoded.boxes[0].x1 == 240 && decoded.boxes[0].y1 == 160 && decoded.boxes[0].y2 == 320,
+          "80-class letterbox inverse wrong");
+    prediction(output, 1, 100, 20, 40, 20, .99F, 0); // entirely in padding, no source box
+    check(decode(output.data(), output.size(), 640, 480, config, general).boxes.size() == 1,
+          "padding-only box became a detection");
+    output[83*kPredictions + 2] = NAN;
+    rejects([&] { decode(output.data(), output.size(), 640, 480, config, general); }, "last-class nonfinite score accepted");
+    rejects([&] { decode(output.data(), profile.output_elements(), 640, 480, config, general); }, "wrong model output size accepted");
+    auto invalid_profile = general; invalid_profile.classes[79] = invalid_profile.classes[0];
+    rejects([&] { invalid_profile.validate(); }, "duplicate class labels accepted");
+    invalid_profile = general; invalid_profile.resize_mode = "guess";
+    rejects([&] { invalid_profile.validate(); }, "unknown preprocessing accepted");
+    invalid_profile = general; invalid_profile.onnx_sha256 = "unverified";
+    rejects([&] { invalid_profile.validate(); }, "unpinned model accepted");
 
     // A constant plane with invalid pixels and an outlier checks units/median/projection.
     std::vector<uint8_t> storage(20 * 8, 0);
