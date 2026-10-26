@@ -3,6 +3,7 @@
 #include <rgbd_camera_interfaces/msg/frame.hpp>
 #include <rgbd_object_detector_interfaces/msg/batch.hpp>
 #include <rgbd_object_detector_interfaces/msg/status.hpp>
+#include <rgbd_object_detector_interfaces/msg/overlay_frame.hpp>
 #include <atomic>
 #include <chrono>
 #include <cmath>
@@ -15,15 +16,17 @@ using namespace std::chrono_literals;
 using Frame = rgbd_camera_interfaces::msg::Frame;
 using Batch = rgbd_object_detector_interfaces::msg::Batch;
 using Status = rgbd_object_detector_interfaces::msg::Status;
+using Overlay = rgbd_object_detector_interfaces::msg::OverlayFrame;
 void check(bool condition, const char* message) { if (!condition) throw std::runtime_error(message); }
 
 struct Control {
   std::atomic<bool> hold{false}, fail{false}, destroyed{false};
-  std::atomic<int> entered{0}, delay_ms{0};
+  std::atomic<int> entered{0}, delay_ms{0}, class_index{0};
 };
 class FixtureBackend : public InferenceBackend {
  public:
-  explicit FixtureBackend(std::shared_ptr<Control> control) : control_(std::move(control)), input_(kInputElements), output_(kOutputElements) {}
+  FixtureBackend(std::shared_ptr<Control> control, const ModelProfile& profile)
+      : control_(std::move(control)), input_(kInputElements), output_(profile.output_elements()), profile_(profile) {}
   ~FixtureBackend() override { control_->destroyed = true; }
   float* input() override { return input_.data(); }
   const float* infer() override {
@@ -32,16 +35,20 @@ class FixtureBackend : public InferenceBackend {
     std::this_thread::sleep_for(std::chrono::milliseconds(control_->delay_ms.load()));
     if (control_->fail) throw std::runtime_error("fixture_backend_failure");
     std::fill(output_.begin(), output_.end(), 0);
-    if (input_[0] > 0) {
-      const float box[]{320,320,160,160,.9F,.1F};
-      for (int channel = 0; channel < 6; ++channel) output_[channel*kPredictions] = box[channel];
+    if (input_[320*640+320] > 0) {
+      const float box[]{320,320,160,160};
+      for (int channel = 0; channel < 4; ++channel) output_[channel*kPredictions] = box[channel];
+      output_.at((4 + control_->class_index) * kPredictions) = .9F;
     }
     return output_.data();
   }
-  BackendIdentity identity() const override { return {"synthetic_fixture", kModelId, kModelSha256, "fixture_engine"}; }
+  BackendIdentity identity() const override {
+    return {"synthetic_fixture", profile_.model_id, profile_.onnx_sha256, "fixture_engine", profile_.profile_sha256};
+  }
  private:
   std::shared_ptr<Control> control_;
   std::vector<float> input_, output_;
+  ModelProfile profile_;
 };
 
 Frame fixture(uint64_t sequence, uint16_t depth = 2000, const std::string& generation = "A", bool empty = false) {
@@ -74,16 +81,22 @@ Frame fixture(uint64_t sequence, uint16_t depth = 2000, const std::string& gener
 
 class Harness {
  public:
-  explicit Harness(double age = 500.0) : control(std::make_shared<Control>()) {
+  explicit Harness(double age = 500.0, const std::string& profile_path = "", bool overlay = false) : control(std::make_shared<Control>()) {
     auto options = rclcpp::NodeOptions().use_intra_process_comms(true)
       .parameter_overrides({{"engine_path", "fixture"}, {"max_frame_age_ms", age}});
-    detector = std::make_shared<DetectorNode>(options, [state=control](const std::string&) { return std::make_unique<FixtureBackend>(state); });
+    if (!profile_path.empty()) options.append_parameter_override("model_profile", profile_path);
+    options.append_parameter_override("publish_overlay", overlay);
+    detector = std::make_shared<DetectorNode>(options, [state=control](const std::string&, const ModelProfile& profile) {
+      return std::make_unique<FixtureBackend>(state, profile);
+    });
     observer = std::make_shared<rclcpp::Node>("detector_fixture", rclcpp::NodeOptions().use_intra_process_comms(true));
     publisher = observer->create_publisher<Frame>("/frames", rclcpp::SensorDataQoS().keep_last(1));
     batch_sub = observer->create_subscription<Batch>("/rgbd_object_detector/batches", rclcpp::SensorDataQoS().keep_last(1),
       [this](Batch::ConstSharedPtr batch) { batches.push_back(batch); });
     status_sub = observer->create_subscription<Status>("/rgbd_object_detector/status", rclcpp::QoS(1).best_effort(),
       [this](Status::ConstSharedPtr state) { check(state->pending <= 1, "pending queue exceeded one"); status = state; });
+    if (overlay) overlay_sub = observer->create_subscription<Overlay>("/rgbd_object_detector/overlay/frame", rclcpp::SensorDataQoS().keep_last(1),
+      [this](Overlay::ConstSharedPtr image) { overlays.push_back(image); });
     executor.add_node(detector); executor.add_node(observer);
     until([&] { return status && status->backend_ready; }, "backend did not become ready");
   }
@@ -104,12 +117,14 @@ class Harness {
   std::shared_ptr<Control> control;
   std::shared_ptr<DetectorNode> detector;
   std::vector<Batch::ConstSharedPtr> batches;
+  std::vector<Overlay::ConstSharedPtr> overlays;
   Status::ConstSharedPtr status;
  private:
   std::shared_ptr<rclcpp::Node> observer;
   rclcpp::Publisher<Frame>::SharedPtr publisher;
   rclcpp::Subscription<Batch>::SharedPtr batch_sub;
   rclcpp::Subscription<Status>::SharedPtr status_sub;
+  rclcpp::Subscription<Overlay>::SharedPtr overlay_sub;
   rclcpp::executors::SingleThreadedExecutor executor;
 };
 
@@ -190,10 +205,55 @@ void expiry_and_failure() {
     check(h.control->entered == 1 && h.batches.empty(), "failed backend restarted implicitly");
   }
 }
+void model_selection(const std::string& path) {
+  const auto profile = load_model_profile(path);
+  check(profile.classes.size() == 80 && profile.classes.back() == "toothbrush", "COCO catalogue changed");
+  Harness h(500, path);
+  h.control->class_index = 79;
+  h.send(fixture(1, 0)); h.until([&] { return h.batches.size() == 1; }, "selected-model batch missing");
+  const auto& batch = *h.batches[0];
+  check(batch.model_id == profile.model_id && batch.model_sha256 == profile.onnx_sha256 &&
+        batch.model_profile_sha256 == profile.profile_sha256 && h.status->model_id == profile.model_id,
+        "model selection identity not propagated");
+  check(batch.detections.detections[0].results[0].hypothesis.class_id == "toothbrush" &&
+        batch.detections.detections[0].bbox.size_y == 80 && batch.model_to_source_offset_y == -40 &&
+        !batch.spatial[0].valid, "selected model labels/letterbox/invalid depth semantics wrong");
+  check(!h.detector->set_parameters({rclcpp::Parameter("model_profile", "other")})[0].successful,
+        "live model change accepted");
+  h.send(fixture(2, 2000, "A", true)); h.until([&] { return h.batches.size() == 2; }, "selected-model empty batch missing");
+  check(h.batches[1]->detections.detections.empty(), "letterbox padding fabricated an empty-scene detection");
+}
+void exact_overlay_integration() {
+  Harness h(1000, "", true);
+  h.control->delay_ms = 100;
+  auto first = fixture(1, 0), second = fixture(2);
+  std::fill(first.rgb.data.begin(), first.rgb.data.end(), 41);
+  std::fill(second.rgb.data.begin(), second.rgb.data.end(), 173);
+  h.send(first); h.until([&] { return h.control->entered == 1; }, "overlay inference did not start");
+  h.send(second);
+  h.until([&] { return h.overlays.size() == 2; }, "exact overlays missing");
+  check(h.overlays[0]->batch.capture == first.capture && h.overlays[1]->batch.capture == second.capture &&
+        h.overlays[0]->image.header == first.rgb.header && h.overlays[1]->image.header == second.rgb.header &&
+        h.overlays[0]->image.data.back() == 41 && h.overlays[1]->image.data.back() == 173,
+        "overlay used latest unrelated image or replaced acquisition identity");
+  check(h.overlays[0]->batch.detections.detections.size() == 1 && !h.overlays[0]->batch.spatial[0].valid,
+        "invalid depth removed overlay 2D detection");
+  h.control->delay_ms = 0;
+  h.send(fixture(3, 2000, "A", true)); h.until([&] { return h.overlays.size() == 3; }, "empty overlay missing");
+  const auto& empty = *h.overlays.back();
+  check(empty.batch.detections.detections.empty() && empty.image.data[100*empty.image.step + 120*3] == 0,
+        "empty result retained previous boxes");
+  h.until([&] { return h.status->overlay_rendered == 3; }, "overlay progress not reported");
+  check(h.status->overlay_enabled && h.status->overlay_pending <= 1 && h.status->overlay_failures == 0,
+        "overlay state or bounds wrong");
+}
 int main(int argc, char** argv) {
   rclcpp::init(argc, argv);
   try {
     output_and_validation(); bounded_exact_association(); generation_during_inference(); expiry_and_failure();
+    check(argc == 2, "COCO model profile path required");
+    model_selection(argv[1]);
+    exact_overlay_integration();
     rclcpp::shutdown();
     std::cout << "detector adapter checks passed (synthetic backend, composed ROS)\n";
     return 0;

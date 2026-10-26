@@ -1,5 +1,7 @@
 // Copyright (c) 2026 Paul N. Beuchat. MIT License.
 #include "rgbd_object_detector/detector_node.hpp"
+#include "rgbd_object_detector/overlay.hpp"
+#include <ament_index_cpp/get_package_share_directory.hpp>
 #include <rgbd_camera_interfaces/msg/frame.hpp>
 #include <rgbd_object_detector_interfaces/msg/batch.hpp>
 #include <rgbd_object_detector_interfaces/msg/status.hpp>
@@ -84,7 +86,7 @@ void validate_frame(const Frame& frame, const std::string& clock, int64_t now) {
 }
 
 std::unique_ptr<Batch> make_batch(const Frame& frame, const Decoded& decoded,
-                                const BackendIdentity& backend, const Config& config) {
+                                const BackendIdentity& backend, const Config& config, const ModelProfile& profile) {
   auto result = std::make_unique<Batch>();
   result->capture = frame.capture;
   result->depth_sequence = frame.depth_sequence; result->depth_acquisition_ns = frame.depth_acquisition_ns;
@@ -92,11 +94,13 @@ std::unique_ptr<Batch> make_batch(const Frame& frame, const Decoded& decoded,
   result->calibration_id = frame.calibration_id; result->camera_backend = frame.backend;
   result->model_id = backend.model_id; result->model_sha256 = backend.model_sha256;
   result->engine_sha256 = backend.engine_sha256; result->inference_backend = backend.name;
-  result->preprocessing = "bgr8_to_rgb_nchw_div255_bilinear_stretch";
+  result->model_profile_sha256 = profile.profile_sha256;
+  result->preprocessing = profile.preprocessing();
   result->source_width = frame.rgb.width; result->source_height = frame.rgb.height;
   result->model_width = kModelWidth; result->model_height = kModelHeight;
-  result->model_to_source_x = double(frame.rgb.width) / kModelWidth;
-  result->model_to_source_y = double(frame.rgb.height) / kModelHeight;
+  const auto transform = image_transform(profile, frame.rgb.width, frame.rgb.height);
+  result->model_to_source_x = transform.scale_x; result->model_to_source_y = transform.scale_y;
+  result->model_to_source_offset_x = transform.offset_x; result->model_to_source_offset_y = transform.offset_y;
   result->score_threshold = config.score_threshold; result->iou_threshold = config.iou_threshold;
   result->roi_fraction = config.roi_fraction; result->min_depth_m = config.min_depth_m;
   result->max_depth_m = config.max_depth_m; result->min_valid_pixels = config.min_valid_pixels;
@@ -112,7 +116,7 @@ std::unique_ptr<Batch> make_batch(const Frame& frame, const Decoded& decoded,
     detection.bbox.center.position.y = (box.y1 + box.y2) / 2;
     detection.bbox.size_x = box.x2 - box.x1; detection.bbox.size_y = box.y2 - box.y1;
     vision_msgs::msg::ObjectHypothesisWithPose hypothesis;
-    hypothesis.hypothesis.class_id = kClassNames.at(box.class_index);
+    hypothesis.hypothesis.class_id = profile.classes.at(box.class_index);
     hypothesis.hypothesis.score = box.score;
     hypothesis.pose.pose.position.x = hypothesis.pose.pose.position.y = hypothesis.pose.pose.position.z = NAN;
     hypothesis.pose.pose.orientation.x = hypothesis.pose.pose.orientation.y = NAN;
@@ -139,10 +143,14 @@ class DetectorNode::Implementation {
     if (node.get_parameter("use_sim_time").as_bool()) throw std::invalid_argument("physical detector cannot use simulated time");
     engine_path_ = setting<std::string>(node, "engine_path", "", "Target-built engine, with same-path .json manifest");
     if (engine_path_.empty()) throw std::invalid_argument("engine_path is required");
-    config_.score_threshold = setting<double>(node, "score_threshold", 0.5, "Inclusive class score threshold, 0..1");
-    config_.iou_threshold = setting<double>(node, "iou_threshold", 0.5, "Class-aware NMS IoU threshold, 0..1");
-    config_.pre_nms_limit = integer_setting(node, "pre_nms_limit", 1000, "Maximum scored candidates retained before NMS, 1..8400");
-    config_.max_detections = integer_setting(node, "max_detections", 20, "Maximum output count, 1..100; truncation is explicit");
+    const auto profile_path = setting<std::string>(node, "model_profile",
+        ament_index_cpp::get_package_share_directory("rgbd_object_detector") + "/models/cones.json",
+        "Validated model profile JSON; selection requires a controlled restart");
+    profile_ = load_model_profile(profile_path);
+    config_.score_threshold = setting<double>(node, "score_threshold", profile_.score_threshold, "Inclusive class score threshold, 0..1");
+    config_.iou_threshold = setting<double>(node, "iou_threshold", profile_.iou_threshold, "Class-aware NMS IoU threshold, 0..1");
+    config_.pre_nms_limit = integer_setting(node, "pre_nms_limit", profile_.pre_nms_limit, "Maximum scored candidates retained before NMS, 1..8400");
+    config_.max_detections = integer_setting(node, "max_detections", profile_.max_detections, "Maximum output count, 1..100; truncation is explicit");
     config_.roi_fraction = setting<double>(node, "roi_fraction", 0.5, "Central width/height fraction of each box, 0.01..1");
     config_.min_depth_m = setting<double>(node, "min_depth_m", 0.1, "Minimum accepted optical Z, metres");
     config_.max_depth_m = setting<double>(node, "max_depth_m", 5.0, "Maximum accepted optical Z, metres");
@@ -151,8 +159,14 @@ class DetectorNode::Implementation {
     config_.max_frame_age_ms = setting<double>(node, "max_frame_age_ms", 500.0, "Maximum capture age at admission and completion, 10..2000 ms");
     config_.validate();
     status_.clock_domain = local_clock_domain(); status_.state = "starting";
-    status_.model_id = kModelId; status_.model_sha256 = kModelSha256;
+    status_.model_id = profile_.model_id; status_.model_sha256 = profile_.onnx_sha256;
+    status_.model_profile_sha256 = profile_.profile_sha256;
     status_.max_frame_age_ns = int64_t(config_.max_frame_age_ms * 1e6);
+    status_.overlay_enabled = setting<bool>(node, "publish_overlay", false, "Optional exact-capture presentation worker");
+    const auto spatial = setting<bool>(node, "overlay_spatial", false, "Show optical Z when spatial estimation is valid");
+    const auto capture_marker = setting<bool>(node, "overlay_capture_marker", false,
+        "Draw a capture timestamp/sequence marker for acquisition-to-browser measurements");
+    if (status_.overlay_enabled) overlay_ = std::make_unique<OverlayWorker>(node, spatial, capture_marker);
     const auto qos = rclcpp::SensorDataQoS().keep_last(1);
     batches_ = node.create_publisher<Batch>("~/batches", qos);
     status_publisher_ = node.create_publisher<Status>("~/status", rclcpp::QoS(1).best_effort());
@@ -165,6 +179,7 @@ class DetectorNode::Implementation {
     { std::lock_guard<std::mutex> lock(mutex_); stopping_ = true; pending_.reset(); }
     available_.notify_all();
     if (worker_.joinable()) worker_.join();
+    overlay_.reset();
   }
 
  private:
@@ -188,6 +203,7 @@ class DetectorNode::Implementation {
       if (!status_.generation.empty()) ++status_.generation_changes;
       if (pending_) { pending_.reset(); ++status_.superseded; }
       ++epoch_;
+      if (overlay_) overlay_->invalidate(epoch_);
       status_.generation = frame->capture.generation; status_.source_id = frame->capture.source_id;
       status_.calibration_id = frame->calibration_id; status_.last_processed_acquisition_ns = 0;
       status_.last_completed_ns = 0;
@@ -202,6 +218,18 @@ class DetectorNode::Implementation {
     Status output;
     { std::lock_guard<std::mutex> lock(mutex_); output = status_; }
     output.header.stamp = node_.now(); output.observed_ns = monotonic_ns(); output.expires_after_ns = 1000000000;
+    output.overlay_state = "disabled";
+    if (overlay_) {
+      const auto statistics = overlay_->statistics();
+      output.overlay_processing = statistics.processing; output.overlay_pending = statistics.pending;
+      output.overlay_rendered = statistics.rendered; output.overlay_replaced = statistics.replaced;
+      output.overlay_stale = statistics.stale; output.overlay_superseded = statistics.superseded;
+      output.overlay_no_consumers = statistics.no_consumers; output.overlay_failures = statistics.failures;
+      output.overlay_last_acquisition_ns = statistics.last_acquisition_ns; output.overlay_last_render_ns = statistics.last_render_ns;
+      output.overlay_detail = statistics.error;
+      output.overlay_state = !statistics.error.empty() ? "error" : !statistics.last_acquisition_ns ? "idle" :
+          output.observed_ns - statistics.last_acquisition_ns <= output.max_frame_age_ns ? "streaming" : "unavailable";
+    }
     if (output.backend_ready && output.state != "error") {
       if (output.last_processed_acquisition_ns > 0 &&
           output.observed_ns - output.last_processed_acquisition_ns <= output.max_frame_age_ns) output.state = "streaming";
@@ -215,10 +243,11 @@ class DetectorNode::Implementation {
   void run() {
     std::unique_ptr<InferenceBackend> backend;
     try {
-      backend = factory_(engine_path_);
+      backend = factory_(engine_path_, profile_);
       if (!backend || !backend->input()) throw std::runtime_error("backend returned no input storage");
       const auto identity = backend->identity();
-      if (identity.model_id != kModelId || identity.model_sha256 != kModelSha256 || identity.engine_sha256.empty())
+      if (identity.model_id != profile_.model_id || identity.model_sha256 != profile_.onnx_sha256 ||
+          identity.profile_sha256 != profile_.profile_sha256 || identity.engine_sha256.empty())
         throw std::runtime_error("backend model/engine identity mismatch");
       {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -239,12 +268,12 @@ class DetectorNode::Implementation {
         if (started - frame->capture.acquisition_ns > int64_t(config_.max_frame_age_ms * 1e6)) {
           std::lock_guard<std::mutex> lock(mutex_); ++status_.stale; status_.processing = false; continue;
         }
-        preprocess(image_view(frame->rgb), backend->input(), kInputElements);
+        preprocess(image_view(frame->rgb), backend->input(), kInputElements, profile_);
         const auto preprocessed = monotonic_ns();
         const auto* raw = backend->infer();
         const auto inferred = monotonic_ns();
-        const auto decoded = decode(raw, kOutputElements, frame->rgb.width, frame->rgb.height, config_);
-        auto output = make_batch(*frame, decoded, identity, config_);
+        const auto decoded = decode(raw, profile_.output_elements(), frame->rgb.width, frame->rgb.height, config_, profile_);
+        auto output = make_batch(*frame, decoded, identity, config_, profile_);
         output->started_ns = started; output->completed_ns = monotonic_ns();
         output->preprocess_ns = preprocessed - started; output->inference_ns = inferred - preprocessed;
         output->postprocess_ns = output->completed_ns - inferred;
@@ -261,13 +290,18 @@ class DetectorNode::Implementation {
         status_.last_completed_ns = output->completed_ns;
         // Linearize publication with generation changes. This is a bounded small
         // message; GPU work and image operations never run under this mutex.
-        batches_->publish(std::move(output));
+        if (overlay_) {
+          const Batch::ConstSharedPtr shared(std::move(output));
+          batches_->publish(*shared);
+          overlay_->submit(frame, shared, epoch);
+        } else batches_->publish(std::move(output));
         ++status_.processed; status_.last_processed_acquisition_ns = frame->capture.acquisition_ns; status_.detail.clear();
       }
     } catch (const std::exception& error) {
       std::lock_guard<std::mutex> lock(mutex_);
       status_.state = "error"; status_.detail = error.what(); ++status_.failures;
       status_.backend_ready = false; status_.processing = false; status_.pending = 0; pending_.reset();
+      if (overlay_) overlay_->invalidate(++epoch_);
       RCLCPP_ERROR(node_.get_logger(), "%s", error.what());
     }
     backend.reset(); // On the owning worker, including terminal faults.
@@ -276,6 +310,8 @@ class DetectorNode::Implementation {
   DetectorNode& node_;
   BackendFactory factory_;
   Config config_;
+  ModelProfile profile_;
+  std::unique_ptr<OverlayWorker> overlay_;
   std::string engine_path_;
   std::mutex mutex_;
   std::condition_variable available_;

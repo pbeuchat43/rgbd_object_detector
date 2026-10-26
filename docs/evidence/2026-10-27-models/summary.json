@@ -1,0 +1,424 @@
+{
+  "kind": "saved_image_and_synthetic_software_verification",
+  "models": [
+    {
+      "model_id": "cones-2024-standard-20260927",
+      "profile_sha256": "75ab94e47c585c2af8d4e0e0ca8b9901ac0427ffa281f235e3b62a1e82182648",
+      "engine_sha256": "35e2b4988f148bb8367c929e16699e0306722290383331baffc239801862ef5e",
+      "onnx_sha256": "dcf4d911dee975944a3cca895d92803c3181d8dba670759276c4d71901c8040d",
+      "native_sha256": "b97816afa0636eb9d20d7f9a40d127aed07f1632c737cba0c3f4001c8fafe686",
+      "script_sha256": "140eaa7053b2b11afe0c1473e9755d6f55e02109e5d0c4a91b734b32afe1f17c",
+      "score_tolerance": 0.02,
+      "box_tolerance_px": 2.0,
+      "reference_score_roundoff_tolerance": 1e-06,
+      "passed": true,
+      "images": [
+        {
+          "image": "blank-640x480.png",
+          "sha256": "df715ee9654cfc6cca68592bc5868397dd675c850a648e63c1bb7881bd0e667f",
+          "width": 640,
+          "height": 480,
+          "labels": [],
+          "preprocessing_max_error": 0.0,
+          "native_decoder_equal": true,
+          "box_max_error_px": 0,
+          "confidence_max_error": 0,
+          "reference_score_range": [
+            7.450580596923828e-07,
+            0.0002804994583129883
+          ],
+          "reference_score_roundoff_count": 0,
+          "pytorch_onnx_parity": null,
+          "passed": true
+        },
+        {
+          "image": "blank-640x640.png",
+          "sha256": "569d72eb8c582ee30ce201dabc6aebd1798cc7d93ecbb3e88be7a09f4d6cfd94",
+          "width": 640,
+          "height": 640,
+          "labels": [],
+          "preprocessing_max_error": 0.0,
+          "native_decoder_equal": true,
+          "box_max_error_px": 0,
+          "confidence_max_error": 0,
+          "reference_score_range": [
+            7.450580596923828e-07,
+            0.0002804994583129883
+          ],
+          "reference_score_roundoff_count": 0,
+          "pytorch_onnx_parity": null,
+          "passed": true
+        },
+        {
+          "image": "bus-640x480.png",
+          "sha256": "1921680743d3837d4da6cad8a8892a85bfb93aad59e5edbf225a8b51eeedc8d8",
+          "width": 640,
+          "height": 480,
+          "labels": [],
+          "preprocessing_max_error": 5.960464477539063e-08,
+          "native_decoder_equal": true,
+          "box_max_error_px": 0,
+          "confidence_max_error": 0,
+          "reference_score_range": [
+            -5.960464477539063e-08,
+            0.46393731236457825
+          ],
+          "reference_score_roundoff_count": 34,
+          "pytorch_onnx_parity": null,
+          "passed": true
+        },
+        {
+          "image": "bus-640x640.png",
+          "sha256": "ab6931e96f45988cc232cafac11c9282c5bd8cb90fe254e873aedf7ec11e6dc6",
+          "width": 640,
+          "height": 640,
+          "labels": [],
+          "preprocessing_max_error": 5.960464477539063e-08,
+          "native_decoder_equal": true,
+          "box_max_error_px": 0,
+          "confidence_max_error": 0,
+          "reference_score_range": [
+            -5.960464477539063e-08,
+            0.355346143245697
+          ],
+          "reference_score_roundoff_count": 36,
+          "pytorch_onnx_parity": null,
+          "passed": true
+        },
+        {
+          "image": "camera-d455.png",
+          "sha256": "2ace0309eb4c52180b905d26f92112ee9dfacbaf1b9ceb884628763fc9f1e02d",
+          "width": 640,
+          "height": 480,
+          "labels": [
+            "yellow_cone",
+            "blue_cone"
+          ],
+          "preprocessing_max_error": 5.960464477539063e-08,
+          "native_decoder_equal": true,
+          "box_max_error_px": 0.0320587158203125,
+          "confidence_max_error": 0.000891566276550293,
+          "reference_score_range": [
+            -5.960464477539063e-08,
+            0.9511513113975525
+          ],
+          "reference_score_roundoff_count": 128,
+          "pytorch_onnx_parity": null,
+          "passed": true
+        },
+        {
+          "image": "camera-oak.png",
+          "sha256": "b2f5f0cbc2630cc1b394076ff15431c02e58ce406ae30b6ccd08ad2a1c8e7f62",
+          "width": 640,
+          "height": 640,
+          "labels": [
+            "yellow_cone",
+            "blue_cone"
+          ],
+          "preprocessing_max_error": 5.960464477539063e-08,
+          "native_decoder_equal": true,
+          "box_max_error_px": 0.0178985595703125,
+          "confidence_max_error": 0.0003070831298828125,
+          "reference_score_range": [
+            -5.960464477539063e-08,
+            0.9458597898483276
+          ],
+          "reference_score_roundoff_count": 85,
+          "pytorch_onnx_parity": null,
+          "passed": true
+        },
+        {
+          "image": "zidane-640x480.png",
+          "sha256": "d01d78f7ec6ffce5feadff7113f35f25af7deadd9bb6784326d41ec24137c49d",
+          "width": 640,
+          "height": 480,
+          "labels": [],
+          "preprocessing_max_error": 5.960464477539063e-08,
+          "native_decoder_equal": true,
+          "box_max_error_px": 0,
+          "confidence_max_error": 0,
+          "reference_score_range": [
+            -5.960464477539063e-08,
+            0.4604894518852234
+          ],
+          "reference_score_roundoff_count": 71,
+          "pytorch_onnx_parity": null,
+          "passed": true
+        },
+        {
+          "image": "zidane-640x640.png",
+          "sha256": "1c3cef1da098d222ed1e3beb3d9a010526b8b48d4ab975949a3c6597d62a666a",
+          "width": 640,
+          "height": 640,
+          "labels": [],
+          "preprocessing_max_error": 5.960464477539063e-08,
+          "native_decoder_equal": true,
+          "box_max_error_px": 0,
+          "confidence_max_error": 0,
+          "reference_score_range": [
+            -5.960464477539063e-08,
+            0.4506664276123047
+          ],
+          "reference_score_roundoff_count": 73,
+          "pytorch_onnx_parity": null,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "model_id": "yolov8n-coco80-ultralytics-8.3.0-opset17",
+      "profile_sha256": "7ee01dbf72a47b96e5277b6a530b97c655398430a8c7f523afd2f34a9867e883",
+      "engine_sha256": "db14b34e3d5ae68bff26b776bcc015b6067012ef1b69901be97212a61b392bfc",
+      "onnx_sha256": "3bd80055fc88933446e2d6d4a7ed346caf65f35bd881fd8b2452924d521bf71d",
+      "native_sha256": "b97816afa0636eb9d20d7f9a40d127aed07f1632c737cba0c3f4001c8fafe686",
+      "script_sha256": "140eaa7053b2b11afe0c1473e9755d6f55e02109e5d0c4a91b734b32afe1f17c",
+      "score_tolerance": 0.02,
+      "box_tolerance_px": 2.0,
+      "reference_score_roundoff_tolerance": 1e-06,
+      "passed": true,
+      "images": [
+        {
+          "image": "blank-640x480.png",
+          "sha256": "df715ee9654cfc6cca68592bc5868397dd675c850a648e63c1bb7881bd0e667f",
+          "width": 640,
+          "height": 480,
+          "labels": [],
+          "preprocessing_max_error": 2.9802322387695312e-08,
+          "native_decoder_equal": true,
+          "box_max_error_px": 0,
+          "confidence_max_error": 0,
+          "reference_score_range": [
+            -1.1920928955078125e-07,
+            0.01682645082473755
+          ],
+          "reference_score_roundoff_count": 6418,
+          "pytorch_onnx_parity": {
+            "box_max_error_px": 0.0015869140625,
+            "score_max_error": 2.3096799850463867e-07,
+            "passed": true
+          },
+          "passed": true
+        },
+        {
+          "image": "blank-640x640.png",
+          "sha256": "569d72eb8c582ee30ce201dabc6aebd1798cc7d93ecbb3e88be7a09f4d6cfd94",
+          "width": 640,
+          "height": 640,
+          "labels": [],
+          "preprocessing_max_error": 0.0,
+          "native_decoder_equal": true,
+          "box_max_error_px": 0,
+          "confidence_max_error": 0,
+          "reference_score_range": [
+            -1.1920928955078125e-07,
+            0.013965070247650146
+          ],
+          "reference_score_roundoff_count": 4965,
+          "pytorch_onnx_parity": {
+            "box_max_error_px": 0.002716064453125,
+            "score_max_error": 1.9744038581848145e-07,
+            "passed": true
+          },
+          "passed": true
+        },
+        {
+          "image": "bus-640x480.png",
+          "sha256": "1921680743d3837d4da6cad8a8892a85bfb93aad59e5edbf225a8b51eeedc8d8",
+          "width": 640,
+          "height": 480,
+          "labels": [
+            "person",
+            "person",
+            "person",
+            "bus",
+            "person"
+          ],
+          "preprocessing_max_error": 5.960464477539063e-08,
+          "native_decoder_equal": true,
+          "box_max_error_px": 0.2325286865234375,
+          "confidence_max_error": 0.0017908811569213867,
+          "reference_score_range": [
+            -1.1920928955078125e-07,
+            0.8933316469192505
+          ],
+          "reference_score_roundoff_count": 25471,
+          "pytorch_onnx_parity": {
+            "box_max_error_px": 0.001434326171875,
+            "score_max_error": 4.351139068603516e-06,
+            "passed": true
+          },
+          "passed": true
+        },
+        {
+          "image": "bus-640x640.png",
+          "sha256": "ab6931e96f45988cc232cafac11c9282c5bd8cb90fe254e873aedf7ec11e6dc6",
+          "width": 640,
+          "height": 640,
+          "labels": [
+            "person",
+            "person",
+            "bus",
+            "person",
+            "person"
+          ],
+          "preprocessing_max_error": 5.960464477539063e-08,
+          "native_decoder_equal": true,
+          "box_max_error_px": 0.26727294921875,
+          "confidence_max_error": 0.0010317564010620117,
+          "reference_score_range": [
+            -1.1920928955078125e-07,
+            0.8952353000640869
+          ],
+          "reference_score_roundoff_count": 28095,
+          "pytorch_onnx_parity": {
+            "box_max_error_px": 0.00201416015625,
+            "score_max_error": 1.5497207641601562e-06,
+            "passed": true
+          },
+          "passed": true
+        },
+        {
+          "image": "camera-d455.png",
+          "sha256": "2ace0309eb4c52180b905d26f92112ee9dfacbaf1b9ceb884628763fc9f1e02d",
+          "width": 640,
+          "height": 480,
+          "labels": [
+            "laptop",
+            "keyboard"
+          ],
+          "preprocessing_max_error": 5.960464477539063e-08,
+          "native_decoder_equal": true,
+          "box_max_error_px": 0.124542236328125,
+          "confidence_max_error": 0.0028798580169677734,
+          "reference_score_range": [
+            -1.1920928955078125e-07,
+            0.6377451419830322
+          ],
+          "reference_score_roundoff_count": 48127,
+          "pytorch_onnx_parity": {
+            "box_max_error_px": 0.0032958984375,
+            "score_max_error": 7.092952728271484e-06,
+            "passed": true
+          },
+          "passed": true
+        },
+        {
+          "image": "camera-oak.png",
+          "sha256": "b2f5f0cbc2630cc1b394076ff15431c02e58ce406ae30b6ccd08ad2a1c8e7f62",
+          "width": 640,
+          "height": 640,
+          "labels": [],
+          "preprocessing_max_error": 5.960464477539063e-08,
+          "native_decoder_equal": true,
+          "box_max_error_px": 0,
+          "confidence_max_error": 0,
+          "reference_score_range": [
+            -1.1920928955078125e-07,
+            0.4168223738670349
+          ],
+          "reference_score_roundoff_count": 36755,
+          "pytorch_onnx_parity": {
+            "box_max_error_px": 0.00738525390625,
+            "score_max_error": 1.5348196029663086e-06,
+            "passed": true
+          },
+          "passed": true
+        },
+        {
+          "image": "zidane-640x480.png",
+          "sha256": "d01d78f7ec6ffce5feadff7113f35f25af7deadd9bb6784326d41ec24137c49d",
+          "width": 640,
+          "height": 480,
+          "labels": [
+            "person",
+            "person"
+          ],
+          "preprocessing_max_error": 5.960464477539063e-08,
+          "native_decoder_equal": true,
+          "box_max_error_px": 0.33087158203125,
+          "confidence_max_error": 0.0010105371475219727,
+          "reference_score_range": [
+            -1.1920928955078125e-07,
+            0.840854287147522
+          ],
+          "reference_score_roundoff_count": 26383,
+          "pytorch_onnx_parity": {
+            "box_max_error_px": 0.0028076171875,
+            "score_max_error": 6.8247318267822266e-06,
+            "passed": true
+          },
+          "passed": true
+        },
+        {
+          "image": "zidane-640x640.png",
+          "sha256": "1c3cef1da098d222ed1e3beb3d9a010526b8b48d4ab975949a3c6597d62a666a",
+          "width": 640,
+          "height": 640,
+          "labels": [
+            "person",
+            "person"
+          ],
+          "preprocessing_max_error": 5.960464477539063e-08,
+          "native_decoder_equal": true,
+          "box_max_error_px": 0.192138671875,
+          "confidence_max_error": 0.0010824203491210938,
+          "reference_score_range": [
+            -1.1920928955078125e-07,
+            0.8473280668258667
+          ],
+          "reference_score_roundoff_count": 25197,
+          "pytorch_onnx_parity": {
+            "box_max_error_px": 0.0017242431640625,
+            "score_max_error": 2.8014183044433594e-06,
+            "passed": true
+          },
+          "passed": true
+        }
+      ]
+    }
+  ],
+  "artifact_rejection": {
+    "passed": true,
+    "cases": [
+      {
+        "name": "wrong_selected_model",
+        "passed": true,
+        "returncode": 1
+      },
+      {
+        "name": "wrong_profile_hash",
+        "passed": true,
+        "returncode": 1
+      },
+      {
+        "name": "wrong_model_hash",
+        "passed": true,
+        "returncode": 1
+      },
+      {
+        "name": "wrong_engine_hash",
+        "passed": true,
+        "returncode": 1
+      },
+      {
+        "name": "general_model_legacy_manifest",
+        "passed": true,
+        "returncode": 1
+      }
+    ],
+    "native_sha256": "36e35ae24dcdd038d069c76aeb547edf94c263f8781cdefc36f02d01f411a301",
+    "engine_sha256": "db14b34e3d5ae68bff26b776bcc015b6067012ef1b69901be97212a61b392bfc"
+  },
+  "native_checks": {
+    "detector_contract": "passed",
+    "detector_adapter": "passed",
+    "prior_unchanged_camera_checks": 3,
+    "failures": 0,
+    "skipped": 0,
+    "log_sha256": "51d280dc1981afc54fec7dcd938dbbaa661a40e6934e13349123cf229b80c661"
+  },
+  "repeat_export": {
+    "onnx_sha256_equal": true,
+    "profile_sha256_equal": true
+  }
+}

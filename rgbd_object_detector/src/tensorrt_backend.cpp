@@ -14,7 +14,10 @@ TensorRTLogger& shared_tensorrt_logger() {
 namespace {
 class TensorRTBackend final : public InferenceBackend {
  public:
-  void load(const std::string& path) {
+  void load(const std::string& path, const ModelProfile& profile) {
+    profile.validate(); profile_ = profile;
+    identity_.model_id = profile.model_id; identity_.model_sha256 = profile.onnx_sha256;
+    identity_.profile_sha256 = profile.profile_sha256;
     std::ifstream file(path, std::ios::binary | std::ios::ate);
     if (!file || file.tellg() < 16 || file.tellg() > 512 * 1024 * 1024)
       throw std::runtime_error("engine missing or outside 16 bytes..512 MiB");
@@ -24,8 +27,11 @@ class TensorRTBackend final : public InferenceBackend {
     identity_.engine_sha256 = sha256_bytes(data.data(), data.size());
     identity_.name = "tensorrt_cuda:fp16_with_fp32_fallback";
     cv::FileStorage metadata(path + ".json", cv::FileStorage::READ | cv::FileStorage::FORMAT_JSON);
-    if (!metadata.isOpened() || int(metadata["schema_version"]) != 1 ||
-        std::string(metadata["model_id"]) != kModelId || std::string(metadata["model_sha256"]) != kModelSha256 ||
+    const int schema = int(metadata["schema_version"]);
+    const bool profile_matches = (schema == 1 && profile.accepts_legacy_manifest()) ||
+        (schema == 2 && std::string(metadata["profile_sha256"]) == profile.profile_sha256);
+    if (!metadata.isOpened() || !profile_matches ||
+        std::string(metadata["model_id"]) != profile.model_id || std::string(metadata["model_sha256"]) != profile.onnx_sha256 ||
         std::string(metadata["engine_sha256"]) != identity_.engine_sha256 ||
         std::string(metadata["precision"]) != "fp16_with_fp32_fallback")
       throw std::runtime_error("engine manifest/model/hash/precision mismatch");
@@ -35,16 +41,16 @@ class TensorRTBackend final : public InferenceBackend {
     engine_.reset(runtime_->deserializeCudaEngine(data.data(), data.size()));
     if (!engine_) throw std::runtime_error("engine deserialization failed");
     if (engine_->getNbIOTensors() != 2) throw std::runtime_error("expected exactly two engine I/O tensors");
-    validate_tensor("images", {1, 3, kModelHeight, kModelWidth}, nvinfer1::TensorIOMode::kINPUT);
-    validate_tensor("output0", {1, 6, kPredictions}, nvinfer1::TensorIOMode::kOUTPUT);
+    validate_tensor(profile.input_name.c_str(), {1, 3, kModelHeight, kModelWidth}, nvinfer1::TensorIOMode::kINPUT);
+    validate_tensor(profile.output_name.c_str(), {1, int(4 + profile.classes.size()), kPredictions}, nvinfer1::TensorIOMode::kOUTPUT);
     context_.reset(engine_->createExecutionContext());
     if (!context_) throw std::runtime_error("TensorRT context creation failed");
     cuda_check(cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking), "create inference stream");
     cuda_check(cudaMallocHost(reinterpret_cast<void**>(&host_input_), kInputElements * sizeof(float)), "allocate pinned input");
-    cuda_check(cudaMallocHost(reinterpret_cast<void**>(&host_output_), kOutputElements * sizeof(float)), "allocate pinned output");
+    cuda_check(cudaMallocHost(reinterpret_cast<void**>(&host_output_), profile.output_elements() * sizeof(float)), "allocate pinned output");
     cuda_check(cudaMalloc(&device_input_, kInputElements * sizeof(float)), "allocate device input");
-    cuda_check(cudaMalloc(&device_output_, kOutputElements * sizeof(float)), "allocate device output");
-    if (!context_->setTensorAddress("images", device_input_) || !context_->setTensorAddress("output0", device_output_))
+    cuda_check(cudaMalloc(&device_output_, profile.output_elements() * sizeof(float)), "allocate device output");
+    if (!context_->setTensorAddress(profile.input_name.c_str(), device_input_) || !context_->setTensorAddress(profile.output_name.c_str(), device_output_))
       throw std::runtime_error("TensorRT tensor binding failed");
   }
   ~TensorRTBackend() override {
@@ -66,7 +72,7 @@ class TensorRTBackend final : public InferenceBackend {
     cuda_check(cudaMemcpyAsync(device_input_, host_input_, kInputElements * sizeof(float), cudaMemcpyHostToDevice, stream_),
                "copy input to device");
     if (!context_->enqueueV3(stream_)) throw std::runtime_error("TensorRT enqueueV3 failed");
-    cuda_check(cudaMemcpyAsync(host_output_, device_output_, kOutputElements * sizeof(float), cudaMemcpyDeviceToHost, stream_),
+    cuda_check(cudaMemcpyAsync(host_output_, device_output_, profile_.output_elements() * sizeof(float), cudaMemcpyDeviceToHost, stream_),
                "copy output to host");
     cuda_check(cudaStreamSynchronize(stream_), "complete inference and output transfer");
     return host_output_;
@@ -93,11 +99,12 @@ class TensorRTBackend final : public InferenceBackend {
   void* device_input_ = nullptr;
   void* device_output_ = nullptr;
   BackendIdentity identity_;
+  ModelProfile profile_;
 };
 }
-std::unique_ptr<InferenceBackend> make_tensorrt_backend(const std::string& engine_path) {
+std::unique_ptr<InferenceBackend> make_tensorrt_backend(const std::string& engine_path, const ModelProfile& profile) {
   auto result = std::make_unique<TensorRTBackend>();
-  result->load(engine_path);
+  result->load(engine_path, profile);
   return result;
 }
 }  // namespace rgbd_object_detector

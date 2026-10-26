@@ -6,7 +6,7 @@
 using namespace rgbd_object_detector;
 class DelayedBackend : public InferenceBackend {
  public:
-  explicit DelayedBackend(const std::string& path) : backend_(make_tensorrt_backend(path)) {}
+  DelayedBackend(const std::string& path, const ModelProfile& profile) : backend_(make_tensorrt_backend(path, profile)) {}
   float* input() override { return backend_->input(); }
   const float* infer() override {
     std::this_thread::sleep_for(std::chrono::milliseconds(350));
@@ -21,7 +21,7 @@ class DelayedBackend : public InferenceBackend {
 int main(int argc, char** argv) {
   rclcpp::init(argc, argv);
   auto node = std::make_shared<DetectorNode>(rclcpp::NodeOptions(),
-      [](const std::string& path) { return std::make_unique<DelayedBackend>(path); });
+      [](const std::string& path, const ModelProfile& profile) { return std::make_unique<DelayedBackend>(path, profile); });
   rclcpp::spin(node);
   node.reset(); rclcpp::shutdown();
   return 0;

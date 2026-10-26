@@ -40,8 +40,9 @@ source install/setup.bash
 ```
 
 The first command builds interfaces without CUDA, TensorRT or a camera SDK.
-`models/cones.json` records the currently compiled profile; it is not a generic
-runtime model-selection file. Changing that JSON alone does not replace a model.
+`model_profile` selects the validated contract shared by building and runtime.
+The default remains `models/cones.json`; [model profiles](model-profiles.md)
+documents COCO export, artifact identity and saved-image verification.
 
 ## Explicit engine build
 
@@ -96,7 +97,7 @@ export RMW_IMPLEMENTATION=rmw_fastrtps_cpp ROS_LOG_DIR=/absolute/task/ros-logs
 colcon test --packages-select rgbd_object_detector --return-code-on-test-failure \
   --event-handlers console_direct+
 colcon test-result --verbose
-build/rgbd_object_detector/test_engine /absolute/models/cones.engine
+build/rgbd_object_detector/test_engine /absolute/models/cones.engine models/cones.json
 python3 src/rgbd_object_detector/tools/verify_hardware.py \
   --device-id YOUR_DEVICE_ID --engine /absolute/models/cones.engine \
   --test-binaries build/rgbd_object_detector --output /absolute/task/hardware-results
@@ -129,3 +130,15 @@ interval, observer receipt age, process layout, drop counts and product CPU/RSS.
 RSS sums across processes include shared pages; they are not PSS. No complete
 delivery, hard latency, end-to-end zero-copy, recall or metric accuracy guarantee
 follows from these short runs.
+
+
+## Selectable models and exact overlays (27 October 2026)
+
+The [model record](evidence/2026-10-27-models/README.md) covers pinned export,
+reference parity, descriptor/artifact rejection and the target-built deployment
+cone engine. The [overlay record](evidence/2026-10-27-overlay/README.md) covers
+native worker/adapter behavior and downstream linking. The sibling
+`robot_composition` repository records actual four-combination integration,
+higher-rate measurements and their physical-observation limits against camera
+revision `0f4b82958f0d7798f0bf911641d0aa67084cc927`. Earlier camera references above
+identify the original standalone milestone, not the current integration pin.

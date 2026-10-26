@@ -6,8 +6,9 @@ find_package(rgbd_camera_interfaces REQUIRED)
 find_package(vision_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
-  "msg/Spatial.msg" "msg/Batch.msg" "msg/Status.msg"
-  DEPENDENCIES rgbd_camera_interfaces vision_msgs geometry_msgs std_msgs)
+  "msg/Spatial.msg" "msg/Batch.msg" "msg/Status.msg" "msg/OverlayFrame.msg"
+  DEPENDENCIES rgbd_camera_interfaces vision_msgs geometry_msgs std_msgs sensor_msgs)
 ament_export_dependencies(rosidl_default_runtime)
 ament_package()

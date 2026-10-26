@@ -2,6 +2,7 @@
 #include "rgbd_object_detector/core.hpp"
 #include "rgbd_object_detector/tensorrt_support.hpp"
 #include <NvOnnxParser.h>
+#include <ament_index_cpp/get_package_share_directory.hpp>
 #include <filesystem>
 #include <fstream>
 #include <memory>
@@ -9,11 +10,13 @@
 int main(int argc, char** argv) {
   using namespace rgbd_object_detector;
   try {
-    if (argc != 3) throw std::runtime_error("usage: build_engine /absolute/cones.onnx /absolute/cones.engine");
+    if (argc != 3 && argc != 4) throw std::runtime_error("usage: build_engine model.onnx model.engine [model-profile.json]");
+    const auto profile = load_model_profile(argc == 4 ? argv[3] :
+        ament_index_cpp::get_package_share_directory("rgbd_object_detector") + "/models/cones.json");
     const std::string onnx = argv[1], output = argv[2];
     if (std::filesystem::exists(output) || std::filesystem::exists(output + ".json"))
       throw std::runtime_error("refusing to overwrite an existing engine or manifest");
-    if (sha256_file(onnx) != kModelSha256) throw std::runtime_error("ONNX hash does not match the cone profile");
+    if (sha256_file(onnx) != profile.onnx_sha256) throw std::runtime_error("ONNX hash does not match the selected profile");
     const auto identity = RuntimeIdentity::inspect();
     auto& logger = shared_tensorrt_logger();
     std::unique_ptr<nvinfer1::IBuilder> builder(nvinfer1::createInferBuilder(logger));
@@ -24,6 +27,17 @@ int main(int argc, char** argv) {
     std::unique_ptr<nvonnxparser::IParser> parser(nvonnxparser::createParser(*network, logger));
     if (!parser || !parser->parseFromFile(onnx.c_str(), int(nvinfer1::ILogger::Severity::kWARNING)))
       throw std::runtime_error("ONNX parsing failed");
+    if (network->getNbInputs() != 1 || network->getNbOutputs() != 1)
+      throw std::runtime_error("profile requires exactly one ONNX input and output");
+    auto validate = [](const nvinfer1::ITensor& tensor, const std::string& name, std::initializer_list<int> shape) {
+      const auto dims = tensor.getDimensions();
+      bool valid = name == tensor.getName() && tensor.getType() == nvinfer1::DataType::kFLOAT && dims.nbDims == int(shape.size());
+      int index = 0;
+      if (valid) for (int dimension : shape) valid &= dims.d[index++] == dimension;
+      if (!valid) throw std::runtime_error("ONNX tensor does not match profile: " + name);
+    };
+    validate(*network->getInput(0), profile.input_name, {1, 3, kModelHeight, kModelWidth});
+    validate(*network->getOutput(0), profile.output_name, {1, int(4 + profile.classes.size()), kPredictions});
     std::unique_ptr<nvinfer1::IBuilderConfig> config(builder->createBuilderConfig());
     if (!config) throw std::runtime_error("TensorRT builder configuration failed");
     config->setFlag(nvinfer1::BuilderFlag::kFP16);
@@ -39,13 +53,14 @@ int main(int argc, char** argv) {
     }
     cv::FileStorage metadata(output + ".json", cv::FileStorage::WRITE | cv::FileStorage::FORMAT_JSON);
     if (!metadata.isOpened()) throw std::runtime_error("engine manifest write failed");
-    metadata << "schema_version" << 1 << "model_id" << kModelId << "model_sha256" << kModelSha256
+    metadata << "schema_version" << 2 << "model_id" << profile.model_id << "model_sha256" << profile.onnx_sha256
+             << "profile_sha256" << profile.profile_sha256
              << "engine_sha256" << sha256_bytes(plan->data(), plan->size())
              << "precision" << "fp16_with_fp32_fallback" << "builder_workspace_mib" << 1024
              << "builder_optimization_level" << 3;
     identity.write(metadata); metadata.release();
     // Validate the artifact through the same path used by the production node.
-    const auto backend = make_tensorrt_backend(output);
+    const auto backend = make_tensorrt_backend(output, profile);
     std::cout << "Built and validated " << output << " SHA-256 " << backend->identity().engine_sha256 << '\n';
     return 0;
   } catch (const std::exception& error) {

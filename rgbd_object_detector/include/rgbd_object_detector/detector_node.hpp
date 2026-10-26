@@ -5,7 +5,7 @@
 #include <functional>
 
 namespace rgbd_object_detector {
-using BackendFactory = std::function<std::unique_ptr<InferenceBackend>(const std::string&)>;
+using BackendFactory = std::function<std::unique_ptr<InferenceBackend>(const std::string&, const ModelProfile&)>;
 class DetectorNode : public rclcpp::Node {
  public:
   explicit DetectorNode(const rclcpp::NodeOptions& options);
