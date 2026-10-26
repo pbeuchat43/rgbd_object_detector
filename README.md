@@ -1,5 +1,8 @@
 # rgbd_object_detector
 
+Optional [exact-capture overlays](docs/overlays.md) provide a standard ROS image
+for video transport and an atomic image/batch interface for capture-aware consumers.
+
 Composable C++ RGB-D object detection for the research robot platform. Select a
 validated model profile independently of the camera, then derive spatial
 estimates from the exact RGB-D bundle used for inference. Acquisition remains in

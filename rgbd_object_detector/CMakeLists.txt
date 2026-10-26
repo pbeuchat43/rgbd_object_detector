@@ -37,13 +37,17 @@ target_link_libraries(build_engine PRIVATE rgbd_detector_tensorrt CUDA::cudart
 ament_target_dependencies(build_engine PUBLIC ament_index_cpp)
 
 add_library(rgbd_detector_component SHARED src/detector_node.cpp)
-target_link_libraries(rgbd_detector_component PRIVATE rgbd_detector_tensorrt Threads::Threads)
+add_library(rgbd_detector_overlay SHARED src/overlay.cpp)
+target_include_directories(rgbd_detector_overlay PRIVATE ${OpenCV_INCLUDE_DIRS})
+target_link_libraries(rgbd_detector_overlay PRIVATE rgbd_detector_core Threads::Threads ${OpenCV_LIBS})
+ament_target_dependencies(rgbd_detector_overlay PUBLIC rclcpp rgbd_camera_interfaces rgbd_object_detector_interfaces)
+target_link_libraries(rgbd_detector_component PRIVATE rgbd_detector_tensorrt rgbd_detector_overlay Threads::Threads)
 ament_target_dependencies(rgbd_detector_component PUBLIC ament_index_cpp rclcpp rclcpp_components rcl_interfaces
   rgbd_camera_interfaces rgbd_object_detector_interfaces vision_msgs)
 rclcpp_components_register_node(rgbd_detector_component
   PLUGIN "rgbd_object_detector::DetectorNode" EXECUTABLE detector_node)
 
-install(TARGETS rgbd_detector_core rgbd_detector_tensorrt rgbd_detector_component build_engine
+install(TARGETS rgbd_detector_core rgbd_detector_tensorrt rgbd_detector_overlay rgbd_detector_component build_engine
   EXPORT export_rgbd_object_detector ARCHIVE DESTINATION lib LIBRARY DESTINATION lib
   RUNTIME DESTINATION lib/${PROJECT_NAME})
 install(DIRECTORY include/ DESTINATION include)
@@ -60,6 +64,11 @@ if(BUILD_TESTING)
   ament_target_dependencies(test_node PUBLIC rclcpp rgbd_camera_interfaces rgbd_object_detector_interfaces)
   add_test(NAME detector_adapter COMMAND test_node ${CMAKE_CURRENT_SOURCE_DIR}/../models/yolov8n-coco80.json)
   set_tests_properties(detector_adapter PROPERTIES TIMEOUT 30)
+  add_executable(test_overlay test/test_overlay.cpp)
+  target_link_libraries(test_overlay PRIVATE rgbd_detector_overlay rgbd_detector_core)
+  ament_target_dependencies(test_overlay PUBLIC rclcpp rgbd_camera_interfaces rgbd_object_detector_interfaces)
+  add_test(NAME detector_overlay COMMAND test_overlay)
+  set_tests_properties(detector_overlay PROPERTIES TIMEOUT 20)
   add_executable(stress_detector test/stress_detector.cpp)
   target_link_libraries(stress_detector PRIVATE rgbd_detector_component rgbd_detector_tensorrt)
   ament_target_dependencies(stress_detector PUBLIC rclcpp)

@@ -5,6 +5,9 @@
 camera SDKs. One `rgbd_object_detector::DetectorNode` is independently executable
 or composable; camera, inference and spatial logic retain separate ownership.
 
+Optional presentation publishes an exact-source image and atomic `OverlayFrame`;
+see [overlays](overlays.md) for association, bounds, status and measurement fields.
+
 ## Input and association
 
 The `frames` subscription accepts the camera's atomic `Frame` bundle with

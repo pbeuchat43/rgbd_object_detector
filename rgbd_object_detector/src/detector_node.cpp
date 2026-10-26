@@ -1,5 +1,6 @@
 // Copyright (c) 2026 Paul N. Beuchat. MIT License.
 #include "rgbd_object_detector/detector_node.hpp"
+#include "rgbd_object_detector/overlay.hpp"
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <rgbd_camera_interfaces/msg/frame.hpp>
 #include <rgbd_object_detector_interfaces/msg/batch.hpp>
@@ -161,6 +162,11 @@ class DetectorNode::Implementation {
     status_.model_id = profile_.model_id; status_.model_sha256 = profile_.onnx_sha256;
     status_.model_profile_sha256 = profile_.profile_sha256;
     status_.max_frame_age_ns = int64_t(config_.max_frame_age_ms * 1e6);
+    status_.overlay_enabled = setting<bool>(node, "publish_overlay", false, "Optional exact-capture presentation worker");
+    const auto spatial = setting<bool>(node, "overlay_spatial", false, "Show optical Z when spatial estimation is valid");
+    const auto capture_marker = setting<bool>(node, "overlay_capture_marker", false,
+        "Draw a capture timestamp/sequence marker for acquisition-to-browser measurements");
+    if (status_.overlay_enabled) overlay_ = std::make_unique<OverlayWorker>(node, spatial, capture_marker);
     const auto qos = rclcpp::SensorDataQoS().keep_last(1);
     batches_ = node.create_publisher<Batch>("~/batches", qos);
     status_publisher_ = node.create_publisher<Status>("~/status", rclcpp::QoS(1).best_effort());
@@ -173,6 +179,7 @@ class DetectorNode::Implementation {
     { std::lock_guard<std::mutex> lock(mutex_); stopping_ = true; pending_.reset(); }
     available_.notify_all();
     if (worker_.joinable()) worker_.join();
+    overlay_.reset();
   }
 
  private:
@@ -196,6 +203,7 @@ class DetectorNode::Implementation {
       if (!status_.generation.empty()) ++status_.generation_changes;
       if (pending_) { pending_.reset(); ++status_.superseded; }
       ++epoch_;
+      if (overlay_) overlay_->invalidate(epoch_);
       status_.generation = frame->capture.generation; status_.source_id = frame->capture.source_id;
       status_.calibration_id = frame->calibration_id; status_.last_processed_acquisition_ns = 0;
       status_.last_completed_ns = 0;
@@ -210,6 +218,18 @@ class DetectorNode::Implementation {
     Status output;
     { std::lock_guard<std::mutex> lock(mutex_); output = status_; }
     output.header.stamp = node_.now(); output.observed_ns = monotonic_ns(); output.expires_after_ns = 1000000000;
+    output.overlay_state = "disabled";
+    if (overlay_) {
+      const auto statistics = overlay_->statistics();
+      output.overlay_processing = statistics.processing; output.overlay_pending = statistics.pending;
+      output.overlay_rendered = statistics.rendered; output.overlay_replaced = statistics.replaced;
+      output.overlay_stale = statistics.stale; output.overlay_superseded = statistics.superseded;
+      output.overlay_no_consumers = statistics.no_consumers; output.overlay_failures = statistics.failures;
+      output.overlay_last_acquisition_ns = statistics.last_acquisition_ns; output.overlay_last_render_ns = statistics.last_render_ns;
+      output.overlay_detail = statistics.error;
+      output.overlay_state = !statistics.error.empty() ? "error" : !statistics.last_acquisition_ns ? "idle" :
+          output.observed_ns - statistics.last_acquisition_ns <= output.max_frame_age_ns ? "streaming" : "unavailable";
+    }
     if (output.backend_ready && output.state != "error") {
       if (output.last_processed_acquisition_ns > 0 &&
           output.observed_ns - output.last_processed_acquisition_ns <= output.max_frame_age_ns) output.state = "streaming";
@@ -270,13 +290,18 @@ class DetectorNode::Implementation {
         status_.last_completed_ns = output->completed_ns;
         // Linearize publication with generation changes. This is a bounded small
         // message; GPU work and image operations never run under this mutex.
-        batches_->publish(std::move(output));
+        if (overlay_) {
+          const Batch::ConstSharedPtr shared(std::move(output));
+          batches_->publish(*shared);
+          overlay_->submit(frame, shared, epoch);
+        } else batches_->publish(std::move(output));
         ++status_.processed; status_.last_processed_acquisition_ns = frame->capture.acquisition_ns; status_.detail.clear();
       }
     } catch (const std::exception& error) {
       std::lock_guard<std::mutex> lock(mutex_);
       status_.state = "error"; status_.detail = error.what(); ++status_.failures;
       status_.backend_ready = false; status_.processing = false; status_.pending = 0; pending_.reset();
+      if (overlay_) overlay_->invalidate(++epoch_);
       RCLCPP_ERROR(node_.get_logger(), "%s", error.what());
     }
     backend.reset(); // On the owning worker, including terminal faults.
@@ -286,6 +311,7 @@ class DetectorNode::Implementation {
   BackendFactory factory_;
   Config config_;
   ModelProfile profile_;
+  std::unique_ptr<OverlayWorker> overlay_;
   std::string engine_path_;
   std::mutex mutex_;
   std::condition_variable available_;

@@ -3,6 +3,7 @@
 #include <rgbd_camera_interfaces/msg/frame.hpp>
 #include <rgbd_object_detector_interfaces/msg/batch.hpp>
 #include <rgbd_object_detector_interfaces/msg/status.hpp>
+#include <rgbd_object_detector_interfaces/msg/overlay_frame.hpp>
 #include <atomic>
 #include <chrono>
 #include <cmath>
@@ -15,6 +16,7 @@ using namespace std::chrono_literals;
 using Frame = rgbd_camera_interfaces::msg::Frame;
 using Batch = rgbd_object_detector_interfaces::msg::Batch;
 using Status = rgbd_object_detector_interfaces::msg::Status;
+using Overlay = rgbd_object_detector_interfaces::msg::OverlayFrame;
 void check(bool condition, const char* message) { if (!condition) throw std::runtime_error(message); }
 
 struct Control {
@@ -79,10 +81,11 @@ Frame fixture(uint64_t sequence, uint16_t depth = 2000, const std::string& gener
 
 class Harness {
  public:
-  explicit Harness(double age = 500.0, const std::string& profile_path = "") : control(std::make_shared<Control>()) {
+  explicit Harness(double age = 500.0, const std::string& profile_path = "", bool overlay = false) : control(std::make_shared<Control>()) {
     auto options = rclcpp::NodeOptions().use_intra_process_comms(true)
       .parameter_overrides({{"engine_path", "fixture"}, {"max_frame_age_ms", age}});
     if (!profile_path.empty()) options.append_parameter_override("model_profile", profile_path);
+    options.append_parameter_override("publish_overlay", overlay);
     detector = std::make_shared<DetectorNode>(options, [state=control](const std::string&, const ModelProfile& profile) {
       return std::make_unique<FixtureBackend>(state, profile);
     });
@@ -92,6 +95,8 @@ class Harness {
       [this](Batch::ConstSharedPtr batch) { batches.push_back(batch); });
     status_sub = observer->create_subscription<Status>("/rgbd_object_detector/status", rclcpp::QoS(1).best_effort(),
       [this](Status::ConstSharedPtr state) { check(state->pending <= 1, "pending queue exceeded one"); status = state; });
+    if (overlay) overlay_sub = observer->create_subscription<Overlay>("/rgbd_object_detector/overlay/frame", rclcpp::SensorDataQoS().keep_last(1),
+      [this](Overlay::ConstSharedPtr image) { overlays.push_back(image); });
     executor.add_node(detector); executor.add_node(observer);
     until([&] { return status && status->backend_ready; }, "backend did not become ready");
   }
@@ -112,12 +117,14 @@ class Harness {
   std::shared_ptr<Control> control;
   std::shared_ptr<DetectorNode> detector;
   std::vector<Batch::ConstSharedPtr> batches;
+  std::vector<Overlay::ConstSharedPtr> overlays;
   Status::ConstSharedPtr status;
  private:
   std::shared_ptr<rclcpp::Node> observer;
   rclcpp::Publisher<Frame>::SharedPtr publisher;
   rclcpp::Subscription<Batch>::SharedPtr batch_sub;
   rclcpp::Subscription<Status>::SharedPtr status_sub;
+  rclcpp::Subscription<Overlay>::SharedPtr overlay_sub;
   rclcpp::executors::SingleThreadedExecutor executor;
 };
 
@@ -216,12 +223,37 @@ void model_selection(const std::string& path) {
   h.send(fixture(2, 2000, "A", true)); h.until([&] { return h.batches.size() == 2; }, "selected-model empty batch missing");
   check(h.batches[1]->detections.detections.empty(), "letterbox padding fabricated an empty-scene detection");
 }
+void exact_overlay_integration() {
+  Harness h(1000, "", true);
+  h.control->delay_ms = 100;
+  auto first = fixture(1, 0), second = fixture(2);
+  std::fill(first.rgb.data.begin(), first.rgb.data.end(), 41);
+  std::fill(second.rgb.data.begin(), second.rgb.data.end(), 173);
+  h.send(first); h.until([&] { return h.control->entered == 1; }, "overlay inference did not start");
+  h.send(second);
+  h.until([&] { return h.overlays.size() == 2; }, "exact overlays missing");
+  check(h.overlays[0]->batch.capture == first.capture && h.overlays[1]->batch.capture == second.capture &&
+        h.overlays[0]->image.header == first.rgb.header && h.overlays[1]->image.header == second.rgb.header &&
+        h.overlays[0]->image.data.back() == 41 && h.overlays[1]->image.data.back() == 173,
+        "overlay used latest unrelated image or replaced acquisition identity");
+  check(h.overlays[0]->batch.detections.detections.size() == 1 && !h.overlays[0]->batch.spatial[0].valid,
+        "invalid depth removed overlay 2D detection");
+  h.control->delay_ms = 0;
+  h.send(fixture(3, 2000, "A", true)); h.until([&] { return h.overlays.size() == 3; }, "empty overlay missing");
+  const auto& empty = *h.overlays.back();
+  check(empty.batch.detections.detections.empty() && empty.image.data[100*empty.image.step + 120*3] == 0,
+        "empty result retained previous boxes");
+  h.until([&] { return h.status->overlay_rendered == 3; }, "overlay progress not reported");
+  check(h.status->overlay_enabled && h.status->overlay_pending <= 1 && h.status->overlay_failures == 0,
+        "overlay state or bounds wrong");
+}
 int main(int argc, char** argv) {
   rclcpp::init(argc, argv);
   try {
     output_and_validation(); bounded_exact_association(); generation_during_inference(); expiry_and_failure();
     check(argc == 2, "COCO model profile path required");
     model_selection(argv[1]);
+    exact_overlay_integration();
     rclcpp::shutdown();
     std::cout << "detector adapter checks passed (synthetic backend, composed ROS)\n";
     return 0;

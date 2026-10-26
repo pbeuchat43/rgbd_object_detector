@@ -32,3 +32,16 @@ int64 last_preprocess_ns
 int64 last_inference_ns
 int64 last_postprocess_ns
 int64 last_source_age_ns
+bool overlay_enabled
+string overlay_state
+string overlay_detail
+bool overlay_processing
+uint32 overlay_pending
+uint64 overlay_rendered
+uint64 overlay_replaced
+uint64 overlay_stale
+uint64 overlay_superseded
+uint64 overlay_no_consumers
+uint64 overlay_failures
+int64 overlay_last_acquisition_ns
+int64 overlay_last_render_ns
