@@ -145,6 +145,11 @@ void worker() {
   Sample missing(3, "B"); missing.batches[0]->max_frame_age_ns = 10000000;
   h.frame(missing); h.batch(missing, 0);
   h.until([&] { return h.output->statistics().retained == 0; }, "incomplete join did not expire");
+  Sample short_age(4, "B"); short_age.batches[0]->max_frame_age_ns = 80000000;
+  h.complete(short_age);
+  h.until([&] { return h.output->statistics().rendered == 2; }, "short-age complete result missing");
+  check(h.output->statistics().state == "streaming", "fresh result not streaming");
+  h.until([&] { return h.output->statistics().state == "waiting_for_pair"; }, "status ignored stricter model age limit");
 }
 int main(int argc, char** argv) {
   rclcpp::init(argc, argv);

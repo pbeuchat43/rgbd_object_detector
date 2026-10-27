@@ -54,7 +54,7 @@ bool CombinedOverlayNode::fresh(const Entry& entry, int64_t now) const {
 void CombinedOverlayNode::clear() {
   ++epoch_;
   status_.superseded += entries_.size() + (pending_ ? 1 : 0);
-  entries_.clear(); pending_.reset(); status_.last_acquisition_ns = 0;
+  entries_.clear(); pending_.reset(); status_.last_acquisition_ns = 0; last_output_deadline_ = 0;
 }
 void CombinedOverlayNode::expire(int64_t now) {
   for (auto it = entries_.begin(); it != entries_.end();) {
@@ -134,7 +134,7 @@ CombinedOverlayNode::Status CombinedOverlayNode::statistics() {
   auto result = status_; result.retained = entries_.size(); result.pending = pending_ ? 1 : 0;
   result.observed_ns = monotonic_ns(); result.expires_ns = result.observed_ns + 1000000000;
   result.state = !has_consumers() ? "idle" : !result.detail.empty() ? "error" :
-      (result.last_acquisition_ns > 0 && result.observed_ns - result.last_acquisition_ns <= max_age_ns_ ? "streaming" : "waiting_for_pair");
+      (result.last_acquisition_ns > 0 && result.observed_ns <= last_output_deadline_ ? "streaming" : "waiting_for_pair");
   return result;
 }
 void CombinedOverlayNode::publish_status() {
@@ -177,6 +177,8 @@ void CombinedOverlayNode::run() {
       else if (!fresh(job->entry, monotonic_ns())) ++status_.expired;
       else if (rendered) {
         ++status_.rendered; status_.last_acquisition_ns = job->entry.acquisition_ns;
+        last_output_deadline_ = job->entry.acquisition_ns + std::min({max_age_ns_,
+            job->entry.batches[0]->max_frame_age_ns, job->entry.batches[1]->max_frame_age_ns});
         status_.last_render_ns = completed - started; status_.detail.clear();
       }
     }

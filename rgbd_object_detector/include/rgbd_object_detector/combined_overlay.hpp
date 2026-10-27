@@ -38,7 +38,7 @@ class CombinedOverlayNode : public rclcpp::Node {
   void publish_status();
   bool spatial_, marker_, have_frame_ = false, have_match_ = false;
   size_t capacity_;
-  int64_t max_age_ns_, last_frame_acquisition_ = 0;
+  int64_t max_age_ns_, last_frame_acquisition_ = 0, last_output_deadline_ = 0;
   uint64_t last_frame_sequence_ = 0, last_matched_sequence_ = 0;
   std::array<uint64_t, 2> last_batch_sequence_{};
   std::array<bool, 2> have_batch_{};
