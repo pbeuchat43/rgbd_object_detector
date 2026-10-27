@@ -24,6 +24,9 @@ struct OverlayStatistics {
 std::unique_ptr<sensor_msgs::msg::Image> render_overlay(
     const sensor_msgs::msg::Image& source, const rgbd_object_detector_interfaces::msg::Batch& batch,
     bool spatial, bool capture_marker);
+std::unique_ptr<sensor_msgs::msg::Image> render_combined_overlay(
+    const sensor_msgs::msg::Image& source, const rgbd_object_detector_interfaces::msg::Batch& first,
+    const rgbd_object_detector_interfaces::msg::Batch& second, bool spatial, bool capture_marker);
 
 class OverlayWorker {
  public:

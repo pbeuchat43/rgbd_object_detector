@@ -49,7 +49,14 @@ ament_target_dependencies(rgbd_detector_component PUBLIC ament_index_cpp rclcpp 
 rclcpp_components_register_node(rgbd_detector_component
   PLUGIN "rgbd_object_detector::DetectorNode" EXECUTABLE detector_node)
 
-install(TARGETS rgbd_detector_core rgbd_detector_tensorrt rgbd_detector_overlay rgbd_detector_component
+add_library(rgbd_combined_overlay_component SHARED src/combined_overlay.cpp)
+target_link_libraries(rgbd_combined_overlay_component PRIVATE rgbd_detector_overlay rgbd_detector_core Threads::Threads)
+ament_target_dependencies(rgbd_combined_overlay_component PUBLIC rclcpp rclcpp_components rcl_interfaces
+  rgbd_camera_interfaces rgbd_object_detector_interfaces)
+rclcpp_components_register_node(rgbd_combined_overlay_component
+  PLUGIN "rgbd_object_detector::CombinedOverlayNode" EXECUTABLE combined_overlay_node)
+
+install(TARGETS rgbd_detector_core rgbd_detector_tensorrt rgbd_detector_overlay rgbd_detector_component rgbd_combined_overlay_component
   EXPORT export_rgbd_object_detector ARCHIVE DESTINATION lib LIBRARY DESTINATION lib
   RUNTIME DESTINATION lib/${PROJECT_NAME})
 install(TARGETS build_engine RUNTIME DESTINATION lib/${PROJECT_NAME})
@@ -72,6 +79,11 @@ if(BUILD_TESTING)
   ament_target_dependencies(test_overlay PUBLIC rclcpp rgbd_camera_interfaces rgbd_object_detector_interfaces)
   add_test(NAME detector_overlay COMMAND test_overlay)
   set_tests_properties(detector_overlay PROPERTIES TIMEOUT 20)
+  add_executable(test_combined_overlay test/test_combined_overlay.cpp)
+  target_link_libraries(test_combined_overlay PRIVATE rgbd_combined_overlay_component rgbd_detector_overlay rgbd_detector_core)
+  ament_target_dependencies(test_combined_overlay PUBLIC rclcpp rgbd_camera_interfaces rgbd_object_detector_interfaces)
+  add_test(NAME combined_overlay COMMAND test_combined_overlay)
+  set_tests_properties(combined_overlay PROPERTIES TIMEOUT 20)
   add_executable(stress_detector test/stress_detector.cpp)
   target_link_libraries(stress_detector PRIVATE rgbd_detector_component rgbd_detector_tensorrt)
   ament_target_dependencies(stress_detector PUBLIC rclcpp)
