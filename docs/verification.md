@@ -142,3 +142,8 @@ native worker/adapter behavior and downstream linking. The sibling
 higher-rate measurements and their physical-observation limits against camera
 revision `0f4b82958f0d7798f0bf911641d0aa67084cc927`. Earlier camera references above
 identify the original standalone milestone, not the current integration pin.
+
+The [combined presentation record](evidence/2026-10-28-combined-overlay/README.md)
+covers the separate two-model join, all four native regression checks and final
+installed artifact identity. Live camera/viewer evidence remains in the sibling
+composition repository.

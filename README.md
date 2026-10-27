@@ -2,6 +2,8 @@
 
 Optional [exact-capture overlays](docs/overlays.md) provide a standard ROS image
 for video transport and an atomic image/batch interface for capture-aware consumers.
+The separate combined presentation node joins two models' results on the same
+original capture; see its [verification record](docs/evidence/2026-10-28-combined-overlay/README.md).
 
 Composable C++ RGB-D object detection for the research robot platform. Select a
 validated model profile independently of the camera, then derive spatial

@@ -45,17 +45,13 @@ void marker(cv::Mat& image, const rgbd_object_detector_interfaces::msg::Batch& b
     cv::rectangle(image, cv::Rect(8 + (bit%60)*8, image.rows - 24 + (bit/60)*8, 8, 8), cv::Scalar::all(value), cv::FILLED);
   }
 }
-}
-
-std::unique_ptr<sensor_msgs::msg::Image> render_overlay(const sensor_msgs::msg::Image& source,
-    const rgbd_object_detector_interfaces::msg::Batch& batch, bool spatial, bool capture_marker) {
+void draw_batch(cv::Mat& image, const sensor_msgs::msg::Image& source,
+    const rgbd_object_detector_interfaces::msg::Batch& batch, bool spatial, const cv::Scalar* model_color = nullptr) {
   ImageView{source.data.data(), source.data.size(), source.width, source.height, source.step}.validate(3);
   if (source.encoding != "bgr8" || source.is_bigendian || source.header != batch.detections.header ||
       source.width != batch.source_width || source.height != batch.source_height ||
       batch.detections.detections.size() > 100 || batch.spatial.size() != batch.detections.detections.size())
     throw std::invalid_argument("overlay source/result contract mismatch");
-  auto output = std::make_unique<sensor_msgs::msg::Image>(source);
-  cv::Mat image(source.height, source.width, CV_8UC3, output->data.data(), source.step);
   for (size_t i = 0; i < batch.detections.detections.size(); ++i) {
     const auto& detection = batch.detections.detections[i];
     const auto& box = detection.bbox;
@@ -68,7 +64,8 @@ std::unique_ptr<sensor_msgs::msg::Image> render_overlay(const sensor_msgs::msg::
         x1 < 0 || y1 < 0 || x2 > source.width || y2 > source.height || x2 <= x1 || y2 <= y1 ||
         !std::isfinite(hypothesis.score) || hypothesis.score < 0 || hypothesis.score > 1 || hypothesis.class_id.size() > 80)
       throw std::invalid_argument("invalid overlay detection");
-    const cv::Scalar color = batch.spatial[i].valid ? cv::Scalar(80,230,80) : cv::Scalar(0,210,255);
+    const cv::Scalar color = model_color ? *model_color :
+        (batch.spatial[i].valid ? cv::Scalar(80,230,80) : cv::Scalar(0,210,255));
     cv::rectangle(image, cv::Point(int(std::floor(x1)), int(std::floor(y1))),
                   cv::Point(std::min(int(source.width)-1, int(std::ceil(x2))-1),
                             std::min(int(source.height)-1, int(std::ceil(y2))-1)), color, 2);
@@ -81,12 +78,47 @@ std::unique_ptr<sensor_msgs::msg::Image> render_overlay(const sensor_msgs::msg::
     }
     label(image, text.str(), int(x1), int(y1) - 4, color);
   }
+}
+}
+
+std::unique_ptr<sensor_msgs::msg::Image> render_overlay(const sensor_msgs::msg::Image& source,
+    const rgbd_object_detector_interfaces::msg::Batch& batch, bool spatial, bool capture_marker) {
+  ImageView{source.data.data(), source.data.size(), source.width, source.height, source.step}.validate(3);
+  auto output = std::make_unique<sensor_msgs::msg::Image>(source);
+  cv::Mat image(source.height, source.width, CV_8UC3, output->data.data(), source.step);
+  draw_batch(image, source, batch, spatial);
   label(image, batch.model_id.substr(0, 65), 2, 16, cv::Scalar(255,255,255));
   std::ostringstream state;
   state << "capture " << batch.capture.sequence << "  " << batch.detections.detections.size() << " detections";
   if (batch.truncated) state << "  TRUNCATED (NMS " << batch.nms_count << ')';
   label(image, state.str(), 2, 34, batch.truncated ? cv::Scalar(0,80,255) : cv::Scalar(255,255,255));
   if (capture_marker) marker(image, batch);
+  return output;
+}
+
+std::unique_ptr<sensor_msgs::msg::Image> render_combined_overlay(const sensor_msgs::msg::Image& source,
+    const rgbd_object_detector_interfaces::msg::Batch& first,
+    const rgbd_object_detector_interfaces::msg::Batch& second, bool spatial, bool capture_marker) {
+  if (first.capture != second.capture || first.calibration_id != second.calibration_id ||
+      first.depth_sequence != second.depth_sequence || first.depth_acquisition_ns != second.depth_acquisition_ns ||
+      first.skew_ns != second.skew_ns || first.pairing_tolerance_ns != second.pairing_tolerance_ns ||
+      first.camera_backend != second.camera_backend)
+    throw std::invalid_argument("combined overlay requires identical capture and pairing metadata");
+  ImageView{source.data.data(), source.data.size(), source.width, source.height, source.step}.validate(3);
+  auto output = std::make_unique<sensor_msgs::msg::Image>(source);
+  cv::Mat image(source.height, source.width, CV_8UC3, output->data.data(), source.step);
+  const std::array<cv::Scalar, 2> colors{cv::Scalar(0,210,255), cv::Scalar(255,210,80)};
+  const std::array<const rgbd_object_detector_interfaces::msg::Batch*, 2> batches{&first, &second};
+  for (size_t i = 0; i < batches.size(); ++i) draw_batch(image, source, *batches[i], spatial, &colors[i]);
+  for (size_t i = 0; i < batches.size(); ++i) {
+    const auto& batch = *batches[i];
+    std::ostringstream text;
+    text << batch.model_id.substr(0, 55) << "  " << batch.detections.detections.size() << " detections";
+    if (batch.truncated) text << "  TRUNCATED (NMS " << batch.nms_count << ')';
+    label(image, text.str(), 2, 16 + int(i)*18, colors[i]);
+  }
+  label(image, "capture " + std::to_string(first.capture.sequence) + "  both models", 2, 52, cv::Scalar(255,255,255));
+  if (capture_marker) marker(image, first);
   return output;
 }
 

@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "passed": true,
+  "revisions": {
+    "detector_tested_implementation": "db77e7ecd7824a31c9c176f0db2718cc49b5f31e",
+    "composition_tested_implementation": "9e68cd555f0232e5302f83a28de214857e087a4c",
+    "camera": "0f4b82958f0d7798f0bf911641d0aa67084cc927",
+    "runtime": "c2b2b6d16964b00caa543006d814c9b112520843",
+    "detector_main": "b5a70986d1c210f4ef47cf3d3b2393b40de4dbd4",
+    "camera_main": "0f26452e4e30e7fe68a0bbb1a0488c4eda33450d",
+    "runtime_main": "be1ed63d3ce870205513b0b37e97f2292d656bd6"
+  },
+  "native_tests": {
+    "names": [
+      "detector_contract",
+      "detector_adapter",
+      "detector_overlay",
+      "combined_overlay"
+    ],
+    "passed": 4,
+    "failed": 0,
+    "log_sha256": "7e4023890c9e5e3fcfa0fcc329f86a4590f14e89ef215d7288429d889252a6fc"
+  },
+  "installation": {
+    "layout": "isolated",
+    "native_files_verified": 284,
+    "native_manifest_sha256": "cdac0270975350a7710556c1d0ad83b409b500ed080124c1408eab0d52198719",
+    "runtime_version": "0.1.0.dev21",
+    "runtime_package_files_unchanged": 100,
+    "runtime_wheel_sha256": "2b96d2c8497c46664f254a131ee0231918b9ff5c56f0e998a6fca1da51e158ae",
+    "libraries_resolve_inside_candidate": true
+  },
+  "limits": [
+    "Synthetic native cases establish software behavior, not hardware performance.",
+    "Runtime source and all 100 installed package files are unchanged; the prior 147 unit and 18 packaged-browser checks were not repeated. Live browser integration was checked with the new profile."
+  ]
+}

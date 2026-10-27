@@ -7,6 +7,9 @@ or composable; camera, inference and spatial logic retain separate ownership.
 
 Optional presentation publishes an exact-source image and atomic `OverlayFrame`;
 see [overlays](overlays.md) for association, bounds, status and measurement fields.
+The separate `CombinedOverlayNode` joins two original batches with their common
+frame and publishes `CombinedOverlayFrame` and `CombinedOverlayStatus` without
+changing detector inference or the single-model batch contract.
 
 ## Input and association
 
