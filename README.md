@@ -1,7 +1,7 @@
 # rgbd_object_detector
 
 Optional [exact-capture overlays](docs/overlays.md) provide a standard ROS image
-for video transport and an atomic image/batch interface for capture-aware consumers.
+for video transport and an atomic image/result interface for capture-aware consumers.
 The separate combined presentation node joins two models' results on the same
 original capture; see its [verification record](docs/evidence/2026-10-28-combined-overlay/README.md).
 
@@ -18,8 +18,10 @@ behind one ROS component. They do not require separate ROS nodes or image copies
 See [the interface](docs/interface-v1.md), [milestone acceptance](docs/milestone.md),
 and [build and verification](docs/verification.md). The
 [observed milestone results](docs/evidence/2026-10-24-oak-tensorrt/README.md) separate
-software checks from live cone observations and record their limits. Version 0.1.0
-is a development milestone, not a stable platform or accuracy claim.
+software checks from live cone observations and record their limits. The initial
+0.1.0 was a development milestone, not a stable platform or accuracy claim.
+Version 0.2.0 renames the capture result interface and topics; see the
+[coordinated migration](docs/capture-detections-migration.md) before rebuilding consumers.
 
 The [model profile guide](docs/model-profiles.md) covers the existing
 [cone model](models/cones.json) and pinned [YOLOv8n COCO model](models/yolov8n-coco80.json).

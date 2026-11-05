@@ -5,11 +5,15 @@
 camera SDKs. One `rgbd_object_detector::DetectorNode` is independently executable
 or composable; camera, inference and spatial logic retain separate ownership.
 
+Package version 0.2.0 uses `CaptureDetections`; its semantic `schema_version`
+remains 1. The [migration guide](capture-detections-migration.md) records the
+breaking ROS type/topic and embedded-field changes from 0.1.0.
+
 Optional presentation publishes an exact-source image and atomic `OverlayFrame`;
 see [overlays](overlays.md) for association, bounds, status and measurement fields.
-The separate `CombinedOverlayNode` joins two original batches with their common
+The separate `CombinedOverlayNode` joins two original results with their common
 frame and publishes `CombinedOverlayFrame` and `CombinedOverlayStatus` without
-changing detector inference or the single-model batch contract.
+changing detector inference or the single-model result contract.
 
 ## Input and association
 
@@ -48,7 +52,7 @@ scale to [0,1] NCHW float32. Decoding reverses the declared transform into sourc
 pixel coordinates. Boxes are continuous edge coordinates clipped to [0,width] and
 [0,height]; width/height are edge differences. Pixel centres are integer coordinates.
 NMS is class-aware, ordered by descending score with deterministic index tie-breaks.
-Candidate/output limits and truncation are explicit; no partial batch looks complete.
+Candidate/output limits and truncation are explicit; no partial result looks complete.
 
 Spatial estimation uses the central configurable fraction of each clipped box,
 rejects the declared invalid code and depths outside configured bounds, and takes
@@ -61,11 +65,12 @@ or accuracy bounds. Confidence remains the model's class score.
 
 ## Output
 
-`~/batches` is an atomic `Batch`: original capture/depth/calibration identity,
+`~/capture_detections` is an atomic `CaptureDetections`, one model's results for
+one exact capture: original capture/depth/calibration identity,
 model/profile/engine/backend identity, preprocessing scale and offsets, stage timing and a
 standard `vision_msgs/Detection2DArray` plus one `Spatial` entry per detection.
-Thresholds, region/depth settings and the output age limit travel with each batch.
-The spatial entry's `detection_index` is scoped to this batch. Standard detection
+Thresholds, region/depth settings and the output age limit travel with each result.
+The spatial entry's `detection_index` is scoped to this result. Standard detection
 IDs remain empty because this component does not track objects. The standard
 hypothesis pose/covariance is unavailable (NaN); use the explicit spatial field.
 
@@ -73,7 +78,7 @@ Positions are metres in the unchanged RGB optical frame (x right, y down, z
 forward). Acquisition stamps are preserved. Invalid spatial results retain their
 2D detection, carry a reason and NaN XYZ, and must not be interpreted as origin.
 No orientation, extent, covariance, persistent identity or robot-frame transform
-is inferred. A successfully processed empty batch replaces prior detections.
+is inferred. A successfully processed empty result replaces prior detections.
 
 `~/status` emits every 200 ms with a 1 s expiry in the declared local clock. It
 separates backend readiness, input progress and successful processing, and reports

@@ -95,7 +95,7 @@ int main(int argc, char** argv) {
     output[4*kPredictions] = NAN;
     rejects([&] { decode(output.data(), output.size(), 640, 640, config, profile); }, "nonfinite output accepted");
     std::fill(output.begin(), output.end(), 0);
-    check(decode(output.data(), output.size(), 640, 640, config, profile).boxes.empty(), "empty batch fabricated detections");
+    check(decode(output.data(), output.size(), 640, 640, config, profile).boxes.empty(), "empty result fabricated detections");
 
     // A synthetic 80-class contract exercises the general decoder independently
     // of weights. Actual COCO class mapping and inference need reference images.

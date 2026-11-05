@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Paul N. Beuchat. MIT License.
 #pragma once
 #include <rgbd_camera_interfaces/msg/frame.hpp>
-#include <rgbd_object_detector_interfaces/msg/batch.hpp>
+#include <rgbd_object_detector_interfaces/msg/capture_detections.hpp>
 #include <rgbd_object_detector_interfaces/msg/overlay_frame.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <atomic>
@@ -20,28 +20,28 @@ struct OverlayStatistics {
   std::string error;
 };
 // Presentation code is independent of the inference/geometry library. The
-// returned pixels own separate storage; source and batch are never modified.
+// returned pixels own separate storage; source and result are never modified.
 std::unique_ptr<sensor_msgs::msg::Image> render_overlay(
-    const sensor_msgs::msg::Image& source, const rgbd_object_detector_interfaces::msg::Batch& batch,
+    const sensor_msgs::msg::Image& source, const rgbd_object_detector_interfaces::msg::CaptureDetections& capture_detections,
     bool spatial, bool capture_marker);
 std::unique_ptr<sensor_msgs::msg::Image> render_combined_overlay(
-    const sensor_msgs::msg::Image& source, const rgbd_object_detector_interfaces::msg::Batch& first,
-    const rgbd_object_detector_interfaces::msg::Batch& second, bool spatial, bool capture_marker);
+    const sensor_msgs::msg::Image& source, const rgbd_object_detector_interfaces::msg::CaptureDetections& first,
+    const rgbd_object_detector_interfaces::msg::CaptureDetections& second, bool spatial, bool capture_marker);
 
 class OverlayWorker {
  public:
   using Frame = rgbd_camera_interfaces::msg::Frame;
-  using Batch = rgbd_object_detector_interfaces::msg::Batch;
+  using CaptureDetections = rgbd_object_detector_interfaces::msg::CaptureDetections;
   using Render = std::function<std::unique_ptr<sensor_msgs::msg::Image>(
-      const sensor_msgs::msg::Image&, const Batch&, bool, bool)>;
+      const sensor_msgs::msg::Image&, const CaptureDetections&, bool, bool)>;
   OverlayWorker(rclcpp::Node& node, bool spatial, bool capture_marker,
                 Render renderer = render_overlay);
   ~OverlayWorker();
-  void submit(Frame::ConstSharedPtr frame, Batch::ConstSharedPtr batch, uint64_t epoch);
+  void submit(Frame::ConstSharedPtr frame, CaptureDetections::ConstSharedPtr capture_detections, uint64_t epoch);
   void invalidate(uint64_t epoch);
   OverlayStatistics statistics();
  private:
-  struct Job { Frame::ConstSharedPtr frame; Batch::ConstSharedPtr batch; uint64_t epoch; };
+  struct Job { Frame::ConstSharedPtr frame; CaptureDetections::ConstSharedPtr capture_detections; uint64_t epoch; };
   void run();
   bool has_consumers() const;
   bool spatial_, capture_marker_;

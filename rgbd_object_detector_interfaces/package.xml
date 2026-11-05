@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="3">
-  <name>rgbd_object_detector_interfaces</name><version>0.1.0</version>
+  <name>rgbd_object_detector_interfaces</name><version>0.2.0</version>
   <description>Exact-capture object detections, spatial validity and processing state.</description>
   <maintainer email="pbeuchat@unimelb.edu.au">Paul N. Beuchat</maintainer>
   <license>MIT</license>

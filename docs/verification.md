@@ -84,7 +84,7 @@ ros2 launch rgbd_object_detector oak_cones.launch.py \
   device_id:=YOUR_DEVICE_ID engine_path:=/absolute/models/cones.engine
 ```
 
-The composed topics are `/perception/camera/frames`, `/perception/detector/batches`
+The composed topics are `/perception/camera/frames`, `/perception/detector/capture_detections`
 and their respective status topics. The camera is the sole hardware owner. Stop
 with SIGINT and confirm that the processes exit; a timeout is not permission to
 kill unrelated processes or restart the workload automatically.

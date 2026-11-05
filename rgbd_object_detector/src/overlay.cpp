@@ -26,14 +26,14 @@ void label(cv::Mat& image, const std::string& text, int x, int y, const cv::Scal
 // 120 black/white cells, two rows of 60 at (8, height-24), each 8x8 pixels.
 // This binds a decoded browser frame to its original acquisition, without
 // pretending WebRTC's transport timestamps already preserve camera identity.
-void marker(cv::Mat& image, const rgbd_object_detector_interfaces::msg::Batch& batch) {
+void marker(cv::Mat& image, const rgbd_object_detector_interfaces::msg::CaptureDetections& capture_detections) {
   if (image.cols < 496 || image.rows < 32) throw std::invalid_argument("capture marker requires at least 496x32 pixels");
   std::array<uint8_t, 15> bytes{};
   bytes[0] = 0xA5;
-  const auto& stamp = batch.detections.header.stamp;
+  const auto& stamp = capture_detections.detections.header.stamp;
   const uint64_t ns = uint64_t(stamp.sec) * 1000000000ULL + stamp.nanosec;
   for (int i = 0; i < 8; ++i) bytes[1+i] = (ns >> (i*8)) & 255;
-  for (int i = 0; i < 4; ++i) bytes[9+i] = (batch.capture.sequence >> (i*8)) & 255;
+  for (int i = 0; i < 4; ++i) bytes[9+i] = (capture_detections.capture.sequence >> (i*8)) & 255;
   uint16_t crc = 0xffff;
   for (int i = 0; i < 13; ++i) {
     crc ^= uint16_t(bytes[i]) << 8;
@@ -45,17 +45,17 @@ void marker(cv::Mat& image, const rgbd_object_detector_interfaces::msg::Batch& b
     cv::rectangle(image, cv::Rect(8 + (bit%60)*8, image.rows - 24 + (bit/60)*8, 8, 8), cv::Scalar::all(value), cv::FILLED);
   }
 }
-void draw_batch(cv::Mat& image, const sensor_msgs::msg::Image& source,
-    const rgbd_object_detector_interfaces::msg::Batch& batch, bool spatial, const cv::Scalar* model_color = nullptr) {
+void draw_capture_detections(cv::Mat& image, const sensor_msgs::msg::Image& source,
+    const rgbd_object_detector_interfaces::msg::CaptureDetections& capture_detections, bool spatial, const cv::Scalar* model_color = nullptr) {
   ImageView{source.data.data(), source.data.size(), source.width, source.height, source.step}.validate(3);
-  if (source.encoding != "bgr8" || source.is_bigendian || source.header != batch.detections.header ||
-      source.width != batch.source_width || source.height != batch.source_height ||
-      batch.detections.detections.size() > 100 || batch.spatial.size() != batch.detections.detections.size())
+  if (source.encoding != "bgr8" || source.is_bigendian || source.header != capture_detections.detections.header ||
+      source.width != capture_detections.source_width || source.height != capture_detections.source_height ||
+      capture_detections.detections.detections.size() > 100 || capture_detections.spatial.size() != capture_detections.detections.detections.size())
     throw std::invalid_argument("overlay source/result contract mismatch");
-  for (size_t i = 0; i < batch.detections.detections.size(); ++i) {
-    const auto& detection = batch.detections.detections[i];
+  for (size_t i = 0; i < capture_detections.detections.detections.size(); ++i) {
+    const auto& detection = capture_detections.detections.detections[i];
     const auto& box = detection.bbox;
-    if (detection.header != source.header || detection.results.size() != 1 || batch.spatial[i].detection_index != i)
+    if (detection.header != source.header || detection.results.size() != 1 || capture_detections.spatial[i].detection_index != i)
       throw std::invalid_argument("overlay detection association mismatch");
     const double x1 = box.center.position.x - box.size_x / 2, y1 = box.center.position.y - box.size_y / 2;
     const double x2 = box.center.position.x + box.size_x / 2, y2 = box.center.position.y + box.size_y / 2;
@@ -65,15 +65,15 @@ void draw_batch(cv::Mat& image, const sensor_msgs::msg::Image& source,
         !std::isfinite(hypothesis.score) || hypothesis.score < 0 || hypothesis.score > 1 || hypothesis.class_id.size() > 80)
       throw std::invalid_argument("invalid overlay detection");
     const cv::Scalar color = model_color ? *model_color :
-        (batch.spatial[i].valid ? cv::Scalar(80,230,80) : cv::Scalar(0,210,255));
+        (capture_detections.spatial[i].valid ? cv::Scalar(80,230,80) : cv::Scalar(0,210,255));
     cv::rectangle(image, cv::Point(int(std::floor(x1)), int(std::floor(y1))),
                   cv::Point(std::min(int(source.width)-1, int(std::ceil(x2))-1),
                             std::min(int(source.height)-1, int(std::ceil(y2))-1)), color, 2);
     std::ostringstream text;
     text << hypothesis.class_id << ' ' << std::fixed << std::setprecision(2) << hypothesis.score;
     if (spatial) {
-      if (batch.spatial[i].valid && std::isfinite(batch.spatial[i].position.z))
-        text << "  Z " << batch.spatial[i].position.z << "m";
+      if (capture_detections.spatial[i].valid && std::isfinite(capture_detections.spatial[i].position.z))
+        text << "  Z " << capture_detections.spatial[i].position.z << "m";
       else text << "  2D only";
     }
     label(image, text.str(), int(x1), int(y1) - 4, color);
@@ -82,23 +82,23 @@ void draw_batch(cv::Mat& image, const sensor_msgs::msg::Image& source,
 }
 
 std::unique_ptr<sensor_msgs::msg::Image> render_overlay(const sensor_msgs::msg::Image& source,
-    const rgbd_object_detector_interfaces::msg::Batch& batch, bool spatial, bool capture_marker) {
+    const rgbd_object_detector_interfaces::msg::CaptureDetections& capture_detections, bool spatial, bool capture_marker) {
   ImageView{source.data.data(), source.data.size(), source.width, source.height, source.step}.validate(3);
   auto output = std::make_unique<sensor_msgs::msg::Image>(source);
   cv::Mat image(source.height, source.width, CV_8UC3, output->data.data(), source.step);
-  draw_batch(image, source, batch, spatial);
-  label(image, batch.model_id.substr(0, 65), 2, 16, cv::Scalar(255,255,255));
+  draw_capture_detections(image, source, capture_detections, spatial);
+  label(image, capture_detections.model_id.substr(0, 65), 2, 16, cv::Scalar(255,255,255));
   std::ostringstream state;
-  state << "capture " << batch.capture.sequence << "  " << batch.detections.detections.size() << " detections";
-  if (batch.truncated) state << "  TRUNCATED (NMS " << batch.nms_count << ')';
-  label(image, state.str(), 2, 34, batch.truncated ? cv::Scalar(0,80,255) : cv::Scalar(255,255,255));
-  if (capture_marker) marker(image, batch);
+  state << "capture " << capture_detections.capture.sequence << "  " << capture_detections.detections.detections.size() << " detections";
+  if (capture_detections.truncated) state << "  TRUNCATED (NMS " << capture_detections.nms_count << ')';
+  label(image, state.str(), 2, 34, capture_detections.truncated ? cv::Scalar(0,80,255) : cv::Scalar(255,255,255));
+  if (capture_marker) marker(image, capture_detections);
   return output;
 }
 
 std::unique_ptr<sensor_msgs::msg::Image> render_combined_overlay(const sensor_msgs::msg::Image& source,
-    const rgbd_object_detector_interfaces::msg::Batch& first,
-    const rgbd_object_detector_interfaces::msg::Batch& second, bool spatial, bool capture_marker) {
+    const rgbd_object_detector_interfaces::msg::CaptureDetections& first,
+    const rgbd_object_detector_interfaces::msg::CaptureDetections& second, bool spatial, bool capture_marker) {
   if (first.capture != second.capture || first.calibration_id != second.calibration_id ||
       first.depth_sequence != second.depth_sequence || first.depth_acquisition_ns != second.depth_acquisition_ns ||
       first.skew_ns != second.skew_ns || first.pairing_tolerance_ns != second.pairing_tolerance_ns ||
@@ -108,13 +108,13 @@ std::unique_ptr<sensor_msgs::msg::Image> render_combined_overlay(const sensor_ms
   auto output = std::make_unique<sensor_msgs::msg::Image>(source);
   cv::Mat image(source.height, source.width, CV_8UC3, output->data.data(), source.step);
   const std::array<cv::Scalar, 2> colors{cv::Scalar(0,210,255), cv::Scalar(255,210,80)};
-  const std::array<const rgbd_object_detector_interfaces::msg::Batch*, 2> batches{&first, &second};
-  for (size_t i = 0; i < batches.size(); ++i) draw_batch(image, source, *batches[i], spatial, &colors[i]);
-  for (size_t i = 0; i < batches.size(); ++i) {
-    const auto& batch = *batches[i];
+  const std::array<const rgbd_object_detector_interfaces::msg::CaptureDetections*, 2> model_results{&first, &second};
+  for (size_t i = 0; i < model_results.size(); ++i) draw_capture_detections(image, source, *model_results[i], spatial, &colors[i]);
+  for (size_t i = 0; i < model_results.size(); ++i) {
+    const auto& capture_detections = *model_results[i];
     std::ostringstream text;
-    text << batch.model_id.substr(0, 55) << "  " << batch.detections.detections.size() << " detections";
-    if (batch.truncated) text << "  TRUNCATED (NMS " << batch.nms_count << ')';
+    text << capture_detections.model_id.substr(0, 55) << "  " << capture_detections.detections.detections.size() << " detections";
+    if (capture_detections.truncated) text << "  TRUNCATED (NMS " << capture_detections.nms_count << ')';
     label(image, text.str(), 2, 16 + int(i)*18, colors[i]);
   }
   label(image, "capture " + std::to_string(first.capture.sequence) + "  both models", 2, 52, cv::Scalar(255,255,255));
@@ -145,13 +145,13 @@ void OverlayWorker::invalidate(uint64_t epoch) {
   if (pending_) { pending_.reset(); ++statistics_.superseded; }
   statistics_.pending = 0; statistics_.last_acquisition_ns = 0;
 }
-void OverlayWorker::submit(Frame::ConstSharedPtr frame, Batch::ConstSharedPtr batch, uint64_t epoch) {
+void OverlayWorker::submit(Frame::ConstSharedPtr frame, CaptureDetections::ConstSharedPtr capture_detections, uint64_t epoch) {
   std::lock_guard<std::mutex> lock(mutex_);
   if (stopping_ || !statistics_.error.empty()) return;
   if (!has_consumers()) { ++statistics_.no_consumers; return; }
   if (epoch != epoch_.load()) { ++statistics_.superseded; return; }
   if (pending_) ++statistics_.replaced;
-  pending_ = std::make_unique<Job>(Job{std::move(frame), std::move(batch), epoch});
+  pending_ = std::make_unique<Job>(Job{std::move(frame), std::move(capture_detections), epoch});
   statistics_.pending = 1; available_.notify_one();
 }
 OverlayStatistics OverlayWorker::statistics() {
@@ -169,28 +169,28 @@ void OverlayWorker::run() {
       }
       const auto started = monotonic_ns();
       std::unique_ptr<sensor_msgs::msg::Image> image;
-      const auto& batch = *job->batch;
-      if (job->epoch == epoch_.load() && started - batch.capture.acquisition_ns <= batch.max_frame_age_ns && has_consumers()) {
-        if (job->frame->capture != batch.capture || job->frame->calibration_id != batch.calibration_id)
+      const auto& capture_detections = *job->capture_detections;
+      if (job->epoch == epoch_.load() && started - capture_detections.capture.acquisition_ns <= capture_detections.max_frame_age_ns && has_consumers()) {
+        if (job->frame->capture != capture_detections.capture || job->frame->calibration_id != capture_detections.calibration_id)
           throw std::invalid_argument("overlay requires the exact retained inference frame");
-        image = renderer_(job->frame->rgb, batch, spatial_, capture_marker_);
+        image = renderer_(job->frame->rgb, capture_detections, spatial_, capture_marker_);
       }
       const auto completed = monotonic_ns();
       const bool superseded = job->epoch != epoch_.load();
-      const bool stale = completed - batch.capture.acquisition_ns > batch.max_frame_age_ns;
+      const bool stale = completed - capture_detections.capture.acquisition_ns > capture_detections.max_frame_age_ns;
       // Publication and rendering never hold the queue mutex. A slow external
       // subscriber cannot make inference wait for rendering or middleware work.
       if (image && !superseded && !stale && !stopping_) {
         if (frames_->get_subscription_count() + frames_->get_intra_process_subscription_count() > 0) {
           auto atomic = std::make_unique<rgbd_object_detector_interfaces::msg::OverlayFrame>();
-          atomic->batch = batch; atomic->image = *image;
+          atomic->capture_detections = capture_detections; atomic->image = *image;
           atomic->render_started_ns = started; atomic->render_completed_ns = completed;
           frames_->publish(std::move(atomic));
         }
         images_->publish(std::move(image));
         std::lock_guard<std::mutex> lock(mutex_);
         ++statistics_.rendered; statistics_.last_render_ns = completed - started;
-        if (job->epoch == epoch_.load()) statistics_.last_acquisition_ns = batch.capture.acquisition_ns;
+        if (job->epoch == epoch_.load()) statistics_.last_acquisition_ns = capture_detections.capture.acquisition_ns;
       }
       {
         std::lock_guard<std::mutex> lock(mutex_);

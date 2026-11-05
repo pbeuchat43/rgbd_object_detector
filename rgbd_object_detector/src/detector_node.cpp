@@ -3,7 +3,7 @@
 #include "rgbd_object_detector/overlay.hpp"
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <rgbd_camera_interfaces/msg/frame.hpp>
-#include <rgbd_object_detector_interfaces/msg/batch.hpp>
+#include <rgbd_object_detector_interfaces/msg/capture_detections.hpp>
 #include <rgbd_object_detector_interfaces/msg/status.hpp>
 #include <rcl_interfaces/msg/parameter_descriptor.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
@@ -18,7 +18,7 @@
 namespace rgbd_object_detector {
 namespace {
 using Frame = rgbd_camera_interfaces::msg::Frame;
-using Batch = rgbd_object_detector_interfaces::msg::Batch;
+using CaptureDetections = rgbd_object_detector_interfaces::msg::CaptureDetections;
 using Status = rgbd_object_detector_interfaces::msg::Status;
 
 template<class T> T setting(rclcpp::Node& node, const char* name, T value, const char* detail) {
@@ -85,9 +85,9 @@ void validate_frame(const Frame& frame, const std::string& clock, int64_t now) {
   validate_stamp(frame.depth.header, frame.depth_acquisition_ns, capture.unix_offset_ns);
 }
 
-std::unique_ptr<Batch> make_batch(const Frame& frame, const Decoded& decoded,
+std::unique_ptr<CaptureDetections> make_capture_detections(const Frame& frame, const Decoded& decoded,
                                 const BackendIdentity& backend, const Config& config, const ModelProfile& profile) {
-  auto result = std::make_unique<Batch>();
+  auto result = std::make_unique<CaptureDetections>();
   result->capture = frame.capture;
   result->depth_sequence = frame.depth_sequence; result->depth_acquisition_ns = frame.depth_acquisition_ns;
   result->skew_ns = frame.skew_ns; result->pairing_tolerance_ns = frame.pairing_tolerance_ns;
@@ -168,7 +168,7 @@ class DetectorNode::Implementation {
         "Draw a capture timestamp/sequence marker for acquisition-to-browser measurements");
     if (status_.overlay_enabled) overlay_ = std::make_unique<OverlayWorker>(node, spatial, capture_marker);
     const auto qos = rclcpp::SensorDataQoS().keep_last(1);
-    batches_ = node.create_publisher<Batch>("~/batches", qos);
+    capture_detections_ = node.create_publisher<CaptureDetections>("~/capture_detections", qos);
     status_publisher_ = node.create_publisher<Status>("~/status", rclcpp::QoS(1).best_effort());
     subscription_ = node.create_subscription<Frame>("frames", qos, [this](Frame::ConstSharedPtr frame) { receive(std::move(frame)); });
     timer_ = node.create_wall_timer(std::chrono::milliseconds(200), [this] { publish_status(); });
@@ -273,7 +273,7 @@ class DetectorNode::Implementation {
         const auto* raw = backend->infer();
         const auto inferred = monotonic_ns();
         const auto decoded = decode(raw, profile_.output_elements(), frame->rgb.width, frame->rgb.height, config_, profile_);
-        auto output = make_batch(*frame, decoded, identity, config_, profile_);
+        auto output = make_capture_detections(*frame, decoded, identity, config_, profile_);
         output->started_ns = started; output->completed_ns = monotonic_ns();
         output->preprocess_ns = preprocessed - started; output->inference_ns = inferred - preprocessed;
         output->postprocess_ns = output->completed_ns - inferred;
@@ -291,10 +291,10 @@ class DetectorNode::Implementation {
         // Linearize publication with generation changes. This is a bounded small
         // message; GPU work and image operations never run under this mutex.
         if (overlay_) {
-          const Batch::ConstSharedPtr shared(std::move(output));
-          batches_->publish(*shared);
+          const CaptureDetections::ConstSharedPtr shared(std::move(output));
+          capture_detections_->publish(*shared);
           overlay_->submit(frame, shared, epoch);
-        } else batches_->publish(std::move(output));
+        } else capture_detections_->publish(std::move(output));
         ++status_.processed; status_.last_processed_acquisition_ns = frame->capture.acquisition_ns; status_.detail.clear();
       }
     } catch (const std::exception& error) {
@@ -321,7 +321,7 @@ class DetectorNode::Implementation {
   Status status_;
   std::thread worker_;
   rclcpp::Subscription<Frame>::SharedPtr subscription_;
-  rclcpp::Publisher<Batch>::SharedPtr batches_;
+  rclcpp::Publisher<CaptureDetections>::SharedPtr capture_detections_;
   rclcpp::Publisher<Status>::SharedPtr status_publisher_;
   rclcpp::TimerBase::SharedPtr timer_;
 };

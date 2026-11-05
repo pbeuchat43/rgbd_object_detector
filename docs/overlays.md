@@ -17,14 +17,14 @@ terminate inference.
 - `~/overlay/image` (`sensor_msgs/Image`) contains BGR8 pixels with the original
   RGB header and acquisition stamp. It is suitable for a ROS-image video encoder.
 - `~/overlay/frame` (`rgbd_object_detector_interfaces/OverlayFrame`) atomically
-  includes those pixels, the complete detection batch, and monotonic rendering
-  start/completion times. Its batch preserves source/generation/sequence,
+  includes those pixels, the complete `CaptureDetections` in `capture_detections`,
+  and monotonic rendering start/completion times. Its result preserves source/generation/sequence,
   calibration, model/profile/engine identity, and acquisition clock metadata.
 
 Boxes and labels use source-image coordinates and include class names and
 confidence. Valid spatial estimates are green; invalid estimates retain an amber
 2D box. A model/capture banner reports detection count and explicit `TRUNCATED`
-state. A fresh empty batch produces a fresh image without previous boxes.
+state. A fresh empty result produces a fresh image without previous boxes.
 
 Status exposes enabled/state/detail, active/pending work, rendered/replaced/stale/
 superseded/no-consumer/failure counts and the last acquisition/render duration.
@@ -36,34 +36,36 @@ detection stream to whichever decoded browser frame happens to be current.
 
 `rgbd_object_detector::CombinedOverlayNode` is a separate composable ROS node,
 also available as `combined_overlay_node`. It subscribes to `frames`,
-`first_batches` and `second_batches`. It owns no inference backend or camera.
+`first_capture_detections` and `second_capture_detections`. It owns no inference
+backend or camera.
 Load it with the camera and both detectors using intra-process communication to
 share immutable input bundles. Rendering copies the source RGB pixels once.
 
-The node joins the original frame and both complete batches by capture sequence
+The node joins the original frame and both complete results by capture sequence
 within the current source/generation. Before rendering it requires full capture,
 calibration, RGB header/geometry, depth pairing and camera-backend equality.
 Each input keeps its own model/profile/engine identity and spatial indices. A
-valid empty batch completes a pair; a missing batch does not. Model identities
-are fixed after their first accepted batch and require restarting the node to
+valid empty result completes a pair; a missing result does not. Model identities
+are fixed after their first accepted result and require restarting the node to
 change. Only camera frames can advance the generation; late older generations
 cannot roll it back. Sequences must advance within each input stream, while
 arrival order between the three streams is unrestricted after source binding.
 
 `join_capacity` defaults to 8 (2..32). It bounds the total unmatched capture
-entries, including entries containing only a batch. The oldest sequence is
+entries, including entries containing only a result. The oldest sequence is
 evicted when full. There is additionally one active and one replaceable pending
 render. `max_frame_age_ms` defaults to 500 (10..2000); the stricter limit from
-either batch also applies. Expiry is checked before and after rendering, and
+either result also applies. Expiry is checked before and after rendering, and
 unmatched entries expire on the 200 ms status timer. Generation changes discard
 old work. Rendering and publication run on a dedicated thread outside the join
 mutex. No subscribers means no retained render/join work. These are freshness
 checks, not a hard real-time publication deadline.
 
 - `~/overlay/image` is the combined BGR8 image with its original RGB header.
-- `~/overlay/frame` is `CombinedOverlayFrame`: two unchanged batches, the image,
+- `~/overlay/frame` is `CombinedOverlayFrame`: two unchanged results in the fixed
+  `capture_detections[2]` array (first model, second model), the image,
   and monotonic render start/completion times. It does not fabricate one merged
-  detector batch.
+  detector result.
 - `~/status` is `CombinedOverlayStatus`, emitted every 200 ms with a one-second
   expiry. It reports `idle` without demand, `waiting_for_pair` without a recent
   complete pair, `streaming`, or the most recent rendering `error`. Received

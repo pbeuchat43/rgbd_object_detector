@@ -1,7 +1,7 @@
 // Synthetic backend in a real intra-process ROS graph. No camera/GPU is opened.
 #include "rgbd_object_detector/detector_node.hpp"
 #include <rgbd_camera_interfaces/msg/frame.hpp>
-#include <rgbd_object_detector_interfaces/msg/batch.hpp>
+#include <rgbd_object_detector_interfaces/msg/capture_detections.hpp>
 #include <rgbd_object_detector_interfaces/msg/status.hpp>
 #include <rgbd_object_detector_interfaces/msg/overlay_frame.hpp>
 #include <atomic>
@@ -14,7 +14,7 @@
 using namespace rgbd_object_detector;
 using namespace std::chrono_literals;
 using Frame = rgbd_camera_interfaces::msg::Frame;
-using Batch = rgbd_object_detector_interfaces::msg::Batch;
+using CaptureDetections = rgbd_object_detector_interfaces::msg::CaptureDetections;
 using Status = rgbd_object_detector_interfaces::msg::Status;
 using Overlay = rgbd_object_detector_interfaces::msg::OverlayFrame;
 void check(bool condition, const char* message) { if (!condition) throw std::runtime_error(message); }
@@ -91,8 +91,8 @@ class Harness {
     });
     observer = std::make_shared<rclcpp::Node>("detector_fixture", rclcpp::NodeOptions().use_intra_process_comms(true));
     publisher = observer->create_publisher<Frame>("/frames", rclcpp::SensorDataQoS().keep_last(1));
-    batch_sub = observer->create_subscription<Batch>("/rgbd_object_detector/batches", rclcpp::SensorDataQoS().keep_last(1),
-      [this](Batch::ConstSharedPtr batch) { batches.push_back(batch); });
+    capture_detections_sub = observer->create_subscription<CaptureDetections>("/rgbd_object_detector/capture_detections", rclcpp::SensorDataQoS().keep_last(1),
+      [this](CaptureDetections::ConstSharedPtr result) { capture_detections.push_back(result); });
     status_sub = observer->create_subscription<Status>("/rgbd_object_detector/status", rclcpp::QoS(1).best_effort(),
       [this](Status::ConstSharedPtr state) { check(state->pending <= 1, "pending queue exceeded one"); status = state; });
     if (overlay) overlay_sub = observer->create_subscription<Overlay>("/rgbd_object_detector/overlay/frame", rclcpp::SensorDataQoS().keep_last(1),
@@ -116,13 +116,13 @@ class Harness {
   void send(Frame frame) { publisher->publish(std::make_unique<Frame>(std::move(frame))); spin(3); }
   std::shared_ptr<Control> control;
   std::shared_ptr<DetectorNode> detector;
-  std::vector<Batch::ConstSharedPtr> batches;
+  std::vector<CaptureDetections::ConstSharedPtr> capture_detections;
   std::vector<Overlay::ConstSharedPtr> overlays;
   Status::ConstSharedPtr status;
  private:
   std::shared_ptr<rclcpp::Node> observer;
   rclcpp::Publisher<Frame>::SharedPtr publisher;
-  rclcpp::Subscription<Batch>::SharedPtr batch_sub;
+  rclcpp::Subscription<CaptureDetections>::SharedPtr capture_detections_sub;
   rclcpp::Subscription<Status>::SharedPtr status_sub;
   rclcpp::Subscription<Overlay>::SharedPtr overlay_sub;
   rclcpp::executors::SingleThreadedExecutor executor;
@@ -131,31 +131,31 @@ class Harness {
 void output_and_validation() {
   Harness h;
   const auto input = fixture(1);
-  h.send(input); h.until([&] { return h.batches.size() == 1; }, "no valid batch");
-  const auto& batch = *h.batches[0];
-  check(batch.capture == input.capture && batch.depth_sequence == 101 && batch.depth_acquisition_ns == input.depth_acquisition_ns &&
-        batch.calibration_id == input.calibration_id && batch.detections.header == input.rgb.header, "source association lost");
-  check(batch.detections.detections.size() == 1 && batch.spatial.size() == 1 && batch.spatial[0].valid &&
-        batch.spatial[0].position.z == 2 && batch.spatial[0].position.x == 0 && batch.spatial[0].position.y == 0,
+  h.send(input); h.until([&] { return h.capture_detections.size() == 1; }, "no valid capture result");
+  const auto& capture_detections = *h.capture_detections[0];
+  check(capture_detections.capture == input.capture && capture_detections.depth_sequence == 101 && capture_detections.depth_acquisition_ns == input.depth_acquisition_ns &&
+        capture_detections.calibration_id == input.calibration_id && capture_detections.detections.header == input.rgb.header, "source association lost");
+  check(capture_detections.detections.detections.size() == 1 && capture_detections.spatial.size() == 1 && capture_detections.spatial[0].valid &&
+        capture_detections.spatial[0].position.z == 2 && capture_detections.spatial[0].position.x == 0 && capture_detections.spatial[0].position.y == 0,
         "matched XYZ wrong");
-  check(batch.model_to_source_x == .5 && batch.model_to_source_y == .375 &&
-        batch.detections.detections[0].id.empty() && std::isnan(batch.detections.detections[0].results[0].pose.pose.position.x),
+  check(capture_detections.model_to_source_x == .5 && capture_detections.model_to_source_y == .375 &&
+        capture_detections.detections.detections[0].id.empty() && std::isnan(capture_detections.detections.detections[0].results[0].pose.pose.position.x),
         "transform or unavailable tracking/pose semantics wrong");
   check(!h.detector->set_parameters({rclcpp::Parameter("score_threshold", .1)})[0].successful, "live reconfiguration accepted");
-  h.send(fixture(2,0)); h.until([&] { return h.batches.size() == 2; }, "invalid depth lost 2D batch");
-  check(h.batches[1]->detections.detections.size() == 1 && !h.batches[1]->spatial[0].valid &&
-        h.batches[1]->spatial[0].invalid_reason == "insufficient_depth" && std::isnan(h.batches[1]->spatial[0].position.z),
+  h.send(fixture(2,0)); h.until([&] { return h.capture_detections.size() == 2; }, "invalid depth lost 2D result");
+  check(h.capture_detections[1]->detections.detections.size() == 1 && !h.capture_detections[1]->spatial[0].valid &&
+        h.capture_detections[1]->spatial[0].invalid_reason == "insufficient_depth" && std::isnan(h.capture_detections[1]->spatial[0].position.z),
         "invalid depth invented position or discarded 2D");
-  h.send(fixture(3,2000,"A",true)); h.until([&] { return h.batches.size() == 3; }, "no empty batch");
-  check(h.batches.back()->detections.detections.empty() && h.batches.back()->spatial.empty(), "empty batch not explicit");
+  h.send(fixture(3,2000,"A",true)); h.until([&] { return h.capture_detections.size() == 3; }, "no empty capture result");
+  check(h.capture_detections.back()->detections.detections.empty() && h.capture_detections.back()->spatial.empty(), "empty result not explicit");
   auto bad = fixture(4); bad.capture.clock_domain = "other_boot"; h.send(bad);
   bad = fixture(5); bad.skew_ns = 6000000; h.send(bad);
   bad = fixture(6); bad.rgb_info.k[0] = 100; h.send(bad);
   bad = fixture(7); bad.calibration_id = "changed_without_restart"; h.send(bad);
   h.send(fixture(3)); // Fresh timestamp, but regressed sequence in the same generation.
   h.until([&] { return h.status->rejected >= 5; }, "invalid input did not reject");
-  check(h.batches.size() == 3, "invalid input reached inference");
-  h.send(fixture(8)); h.until([&] { return h.batches.size() == 4; }, "valid input failed to recover");
+  check(h.capture_detections.size() == 3, "invalid input reached inference");
+  h.send(fixture(8)); h.until([&] { return h.capture_detections.size() == 4; }, "valid input failed to recover");
 }
 void bounded_exact_association() {
   Harness h;
@@ -163,9 +163,9 @@ void bounded_exact_association() {
   h.until([&] { return h.control->entered == 1; }, "inference did not begin");
   for (uint64_t i = 2; i <= 15; ++i) h.send(fixture(i,1000+10*i));
   h.control->hold = false;
-  h.until([&] { return h.batches.size() == 2; }, "latest pending frame not processed");
-  check(h.batches[0]->capture.sequence == 1 && std::abs(h.batches[0]->spatial[0].position.z-1.01) < 1e-9 &&
-        h.batches[1]->capture.sequence == 15 && std::abs(h.batches[1]->spatial[0].position.z-1.15) < 1e-9,
+  h.until([&] { return h.capture_detections.size() == 2; }, "latest pending frame not processed");
+  check(h.capture_detections[0]->capture.sequence == 1 && std::abs(h.capture_detections[0]->spatial[0].position.z-1.01) < 1e-9 &&
+        h.capture_detections[1]->capture.sequence == 15 && std::abs(h.capture_detections[1]->spatial[0].position.z-1.15) < 1e-9,
         "inference associated with the latest unrelated depth");
   h.until([&] { return h.status->replaced == 13 && h.status->processed == 2; }, "replacement accounting wrong");
   check(h.control->entered == 2, "obsolete pending frames accumulated");
@@ -176,23 +176,23 @@ void generation_during_inference() {
   const auto old = fixture(1,1000,"A"); h.send(old);
   h.until([&] { return h.control->entered == 1; }, "old inference did not begin");
   h.send(fixture(1,3000,"B")); h.control->hold = false;
-  h.until([&] { return !h.batches.empty(); }, "new generation result missing");
-  check(h.batches.size() == 1 && h.batches[0]->capture.generation == "B" &&
-        h.batches[0]->calibration_id == "calibration_B" && h.batches[0]->spatial[0].position.z == 3,
+  h.until([&] { return !h.capture_detections.empty(); }, "new generation result missing");
+  check(h.capture_detections.size() == 1 && h.capture_detections[0]->capture.generation == "B" &&
+        h.capture_detections[0]->calibration_id == "calibration_B" && h.capture_detections[0]->spatial[0].position.z == 3,
         "old-generation result leaked or geometry crossed generations");
   h.send(old);
   h.until([&] { return h.status->superseded >= 1 && h.status->generation_changes == 1 && h.status->rejected >= 1; },
           "restart/late-frame accounting wrong");
-  check(h.batches.size() == 1, "late old generation was reactivated");
+  check(h.capture_detections.size() == 1, "late old generation was reactivated");
 }
 void expiry_and_failure() {
   {
     Harness h(50);
     h.control->delay_ms = 120; h.send(fixture(1));
     h.until([&] { return h.status->stale >= 1; }, "slow result did not expire");
-    check(h.batches.empty(), "expired result published");
+    check(h.capture_detections.empty(), "expired result published");
     h.control->delay_ms = 0; h.send(fixture(2));
-    h.until([&] { return h.batches.size() == 1; }, "fresh input did not recover after expiry");
+    h.until([&] { return h.capture_detections.size() == 1; }, "fresh input did not recover after expiry");
     h.spin(300);
     check(h.status->state == "unavailable" && h.status->backend_ready, "input silence retained positive readiness");
   }
@@ -202,7 +202,7 @@ void expiry_and_failure() {
     h.until([&] { return h.status->state == "error" && h.control->destroyed; }, "backend failure did not release resources");
     check(h.status->failures == 1 && !h.status->backend_ready && h.status->detail == "fixture_backend_failure", "failure not observable");
     h.send(fixture(2)); h.spin(30);
-    check(h.control->entered == 1 && h.batches.empty(), "failed backend restarted implicitly");
+    check(h.control->entered == 1 && h.capture_detections.empty(), "failed backend restarted implicitly");
   }
 }
 void model_selection(const std::string& path) {
@@ -210,18 +210,18 @@ void model_selection(const std::string& path) {
   check(profile.classes.size() == 80 && profile.classes.back() == "toothbrush", "COCO catalogue changed");
   Harness h(500, path);
   h.control->class_index = 79;
-  h.send(fixture(1, 0)); h.until([&] { return h.batches.size() == 1; }, "selected-model batch missing");
-  const auto& batch = *h.batches[0];
-  check(batch.model_id == profile.model_id && batch.model_sha256 == profile.onnx_sha256 &&
-        batch.model_profile_sha256 == profile.profile_sha256 && h.status->model_id == profile.model_id,
+  h.send(fixture(1, 0)); h.until([&] { return h.capture_detections.size() == 1; }, "selected-model result missing");
+  const auto& capture_detections = *h.capture_detections[0];
+  check(capture_detections.model_id == profile.model_id && capture_detections.model_sha256 == profile.onnx_sha256 &&
+        capture_detections.model_profile_sha256 == profile.profile_sha256 && h.status->model_id == profile.model_id,
         "model selection identity not propagated");
-  check(batch.detections.detections[0].results[0].hypothesis.class_id == "toothbrush" &&
-        batch.detections.detections[0].bbox.size_y == 80 && batch.model_to_source_offset_y == -40 &&
-        !batch.spatial[0].valid, "selected model labels/letterbox/invalid depth semantics wrong");
+  check(capture_detections.detections.detections[0].results[0].hypothesis.class_id == "toothbrush" &&
+        capture_detections.detections.detections[0].bbox.size_y == 80 && capture_detections.model_to_source_offset_y == -40 &&
+        !capture_detections.spatial[0].valid, "selected model labels/letterbox/invalid depth semantics wrong");
   check(!h.detector->set_parameters({rclcpp::Parameter("model_profile", "other")})[0].successful,
         "live model change accepted");
-  h.send(fixture(2, 2000, "A", true)); h.until([&] { return h.batches.size() == 2; }, "selected-model empty batch missing");
-  check(h.batches[1]->detections.detections.empty(), "letterbox padding fabricated an empty-scene detection");
+  h.send(fixture(2, 2000, "A", true)); h.until([&] { return h.capture_detections.size() == 2; }, "selected-model empty result missing");
+  check(h.capture_detections[1]->detections.detections.empty(), "letterbox padding fabricated an empty-scene detection");
 }
 void exact_overlay_integration() {
   Harness h(1000, "", true);
@@ -232,16 +232,16 @@ void exact_overlay_integration() {
   h.send(first); h.until([&] { return h.control->entered == 1; }, "overlay inference did not start");
   h.send(second);
   h.until([&] { return h.overlays.size() == 2; }, "exact overlays missing");
-  check(h.overlays[0]->batch.capture == first.capture && h.overlays[1]->batch.capture == second.capture &&
+  check(h.overlays[0]->capture_detections.capture == first.capture && h.overlays[1]->capture_detections.capture == second.capture &&
         h.overlays[0]->image.header == first.rgb.header && h.overlays[1]->image.header == second.rgb.header &&
         h.overlays[0]->image.data.back() == 41 && h.overlays[1]->image.data.back() == 173,
         "overlay used latest unrelated image or replaced acquisition identity");
-  check(h.overlays[0]->batch.detections.detections.size() == 1 && !h.overlays[0]->batch.spatial[0].valid,
+  check(h.overlays[0]->capture_detections.detections.detections.size() == 1 && !h.overlays[0]->capture_detections.spatial[0].valid,
         "invalid depth removed overlay 2D detection");
   h.control->delay_ms = 0;
   h.send(fixture(3, 2000, "A", true)); h.until([&] { return h.overlays.size() == 3; }, "empty overlay missing");
   const auto& empty = *h.overlays.back();
-  check(empty.batch.detections.detections.empty() && empty.image.data[100*empty.image.step + 120*3] == 0,
+  check(empty.capture_detections.detections.detections.empty() && empty.image.data[100*empty.image.step + 120*3] == 0,
         "empty result retained previous boxes");
   h.until([&] { return h.status->overlay_rendered == 3; }, "overlay progress not reported");
   check(h.status->overlay_enabled && h.status->overlay_pending <= 1 && h.status->overlay_failures == 0,

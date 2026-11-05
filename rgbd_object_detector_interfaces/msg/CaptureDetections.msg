@@ -1,3 +1,4 @@
+# One model's results for one exact capture, including a successful empty result.
 uint16 schema_version 1
 rgbd_camera_interfaces/CaptureReference capture
 uint64 depth_sequence

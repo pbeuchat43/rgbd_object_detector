@@ -19,7 +19,7 @@ from rclpy.node import Node
 from rclpy.parameter import Parameter
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 from rgbd_camera_interfaces.msg import Frame, Status as CameraStatus
-from rgbd_object_detector_interfaces.msg import Batch, Status
+from rgbd_object_detector_interfaces.msg import CaptureDetections, Status
 
 MODEL_HASH = 'dcf4d911dee975944a3cca895d92803c3181d8dba670759276c4d71901c8040d'
 QOS = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)
@@ -92,12 +92,12 @@ class Observer(Node):
         self.status = self.camera = None
         self.camera_samples = []
         self.last_sequence = {}
-        self.frames, self.pending_batches = OrderedDict(), OrderedDict()
+        self.frames, self.pending_capture_detections = OrderedDict(), OrderedDict()
         self.associations = 0
         self.associated_valid_positions = 0
         self.camera_sub = self.create_subscription(CameraStatus, namespace + '/camera/status', self.camera_status, QOS)
         self.status_sub = self.create_subscription(Status, namespace + '/detector/status', self.detector_status, QOS)
-        self.batch_sub = self.create_subscription(Batch, namespace + '/detector/batches', self.batch, QOS)
+        self.capture_detections_sub = self.create_subscription(CaptureDetections, namespace + '/detector/capture_detections', self.receive_capture_detections, QOS)
         self.frame_sub = self.create_subscription(Frame, namespace + '/camera/frames', self.frame, QOS) if association else None
 
     def camera_status(self, message):
@@ -110,11 +110,11 @@ class Observer(Node):
         check(message.pending <= 1, 'detector exceeded pending queue bound')
         self.status = message
 
-    def batch(self, message):
+    def receive_capture_detections(self, message):
         now = time.monotonic_ns()
         capture = message.capture
         check(message.schema_version == 1 and message.model_sha256 == MODEL_HASH and message.engine_sha256 == self.engine_hash,
-              'batch model/artifact identity mismatch')
+              'capture result model/artifact identity mismatch')
         check(capture.clock_domain == 'linux_monotonic:' + Path('/proc/sys/kernel/random/boot_id').read_text().strip(), 'wrong clock')
         check(capture.sequence > self.last_sequence.get(capture.generation, -1), 'duplicate/regressed output sequence')
         self.last_sequence[capture.generation] = capture.sequence
@@ -151,10 +151,10 @@ class Observer(Node):
                               calibration_id=message.calibration_id, truncated=message.truncated))
         if self.frame_sub:
             key = (capture.generation, capture.sequence)
-            self.pending_batches[key] = message
+            self.pending_capture_detections[key] = message
             self.join(key)
-            while len(self.pending_batches) > 8:
-                self.pending_batches.popitem(last=False)
+            while len(self.pending_capture_detections) > 8:
+                self.pending_capture_detections.popitem(last=False)
 
     def frame(self, message):
         key = (message.capture.generation, message.capture.sequence)
@@ -164,21 +164,21 @@ class Observer(Node):
             self.frames.popitem(last=False)
 
     def join(self, key):
-        if key not in self.frames or key not in self.pending_batches:
+        if key not in self.frames or key not in self.pending_capture_detections:
             return
-        frame, batch = self.frames.pop(key), self.pending_batches.pop(key)
-        check(frame.capture == batch.capture and frame.calibration_id == batch.calibration_id and
-              frame.depth_sequence == batch.depth_sequence and frame.depth_acquisition_ns == batch.depth_acquisition_ns,
+        frame, capture_detections = self.frames.pop(key), self.pending_capture_detections.pop(key)
+        check(frame.capture == capture_detections.capture and frame.calibration_id == capture_detections.calibration_id and
+              frame.depth_sequence == capture_detections.depth_sequence and frame.depth_acquisition_ns == capture_detections.depth_acquisition_ns,
               'hardware exact-bundle association mismatch')
         depth = np.frombuffer(frame.depth.data, '<u2').reshape(frame.depth.height, frame.depth.step//2)[:, :frame.depth.width]
-        for detection, spatial in zip(batch.detections.detections, batch.spatial):
+        for detection, spatial in zip(capture_detections.detections.detections, capture_detections.spatial):
             box = detection.bbox
             u, v = box.center.position.x, box.center.position.y
-            x1, x2 = max(0, math.ceil(u-box.size_x*batch.roi_fraction/2)), min(frame.depth.width, math.ceil(u+box.size_x*batch.roi_fraction/2))
-            y1, y2 = max(0, math.ceil(v-box.size_y*batch.roi_fraction/2)), min(frame.depth.height, math.ceil(v+box.size_y*batch.roi_fraction/2))
+            x1, x2 = max(0, math.ceil(u-box.size_x*capture_detections.roi_fraction/2)), min(frame.depth.width, math.ceil(u+box.size_x*capture_detections.roi_fraction/2))
+            y1, y2 = max(0, math.ceil(v-box.size_y*capture_detections.roi_fraction/2)), min(frame.depth.height, math.ceil(v+box.size_y*capture_detections.roi_fraction/2))
             raw = depth[y1:y2, x1:x2]
             metres = raw.astype(np.float64) * frame.depth_unit_m
-            valid = metres[(raw != frame.invalid_depth_value) & (metres >= batch.min_depth_m) & (metres <= batch.max_depth_m)]
+            valid = metres[(raw != frame.invalid_depth_value) & (metres >= capture_detections.min_depth_m) & (metres <= capture_detections.max_depth_m)]
             check(raw.size == spatial.roi_pixels and valid.size == spatial.valid_pixels, 'hardware ROI/depth sample count mismatch')
             if spatial.valid:
                 z = float(np.median(valid))
@@ -205,18 +205,18 @@ class Observer(Node):
     def reset_measurement(self):
         self.rows.clear(); self.camera_samples.clear()
         self.associations = self.associated_valid_positions = 0
-        self.frames.clear(); self.pending_batches.clear()
+        self.frames.clear(); self.pending_capture_detections.clear()
 
     def summary(self, sampler):
         rows = self.rows
-        result = dict(batch_count=len(rows), empty_batches=sum(not row['objects'] for row in rows),
+        result = dict(capture_detections_count=len(rows), empty_capture_detections=sum(not row['objects'] for row in rows),
                       valid_positions=sum(obj['valid'] for row in rows for obj in row['objects']),
                       invalid_positions=sum(not obj['valid'] for row in rows for obj in row['objects']),
                       source_generations=sorted({row['generation'] for row in rows}),
                       exact_associations=self.associations, associated_valid_positions=self.associated_valid_positions,
-                      resource=sampler.summary(), batches=rows.copy())
+                      resource=sampler.summary(), capture_detections=rows.copy())
         if len(rows) >= 2:
-            result['batch_rate_hz'] = (len(rows)-1)*1e9/(rows[-1]['received_ns']-rows[0]['received_ns'])
+            result['capture_detections_rate_hz'] = (len(rows)-1)*1e9/(rows[-1]['received_ns']-rows[0]['received_ns'])
         for key in ('source_age_ms', 'observer_age_ms', 'preprocess_ms', 'inference_ms', 'postprocess_ms'):
             values = [row[key] for row in rows]
             result[key] = dict(p50=percentile(values,.5), p95=percentile(values,.95), maximum=max(values, default=None))
@@ -296,7 +296,7 @@ def run_camera_case(case, args, engine_hash):
         observer.wait(lambda: observer.status is not None and observer.status.backend_ready and
                       observer.camera is not None and observer.camera.state == 'streaming', 40, 'pipeline not ready')
         if case != 'overload':
-            observer.wait(lambda: len(observer.rows) >= 10, 20, 'no successful live batches')
+            observer.wait(lambda: len(observer.rows) >= 10, 20, 'no successful live results')
         observer.reset_measurement()
         sampler = ResourceSampler([process.pid for process in processes])
         if case == 'overload':
@@ -306,7 +306,7 @@ def run_camera_case(case, args, engine_hash):
         elif case == 'association':
             observer.wait(lambda: observer.associations >= 10, 30, 'insufficient exact hardware associations', sampler)
         else:
-            observer.wait(lambda: len(observer.rows) >= args.frames, 40, 'insufficient successful batches', sampler)
+            observer.wait(lambda: len(observer.rows) >= args.frames, 40, 'insufficient successful results', sampler)
         result = observer.summary(sampler)
         result['case'] = case
         result['layout'] = 'composed_intra_process' if case in ('composed','association') else 'separate_processes'

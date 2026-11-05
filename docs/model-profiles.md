@@ -38,7 +38,7 @@ model hash, ID, class map, tensor names and stretch contract. They cannot be use
 as a general-model engine. The original cone ONNX and inference behavior are
 preserved.
 
-For letterboxing, each batch reports the inverse affine transform:
+For letterboxing, each result reports the inverse affine transform:
 `source_x = model_x * model_to_source_x + model_to_source_offset_x`, likewise for
 y. Resized dimensions use nearest-even rounding, padding is centred with the
 extra pixel on the right/bottom, and the continuous-coordinate inverse uses the

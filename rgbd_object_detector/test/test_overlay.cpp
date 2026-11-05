@@ -10,11 +10,11 @@
 using namespace rgbd_object_detector;
 using namespace std::chrono_literals;
 using Frame = OverlayWorker::Frame;
-using Batch = OverlayWorker::Batch;
+using CaptureDetections = OverlayWorker::CaptureDetections;
 using Overlay = rgbd_object_detector_interfaces::msg::OverlayFrame;
 void check(bool value, const char* message) { if (!value) throw std::runtime_error(message); }
-std::pair<Frame::SharedPtr, Batch::SharedPtr> fixture(uint64_t sequence, const std::string& generation = "A") {
-  auto frame = std::make_shared<Frame>(); auto batch = std::make_shared<Batch>();
+std::pair<Frame::SharedPtr, CaptureDetections::SharedPtr> fixture(uint64_t sequence, const std::string& generation = "A") {
+  auto frame = std::make_shared<Frame>(); auto capture_detections = std::make_shared<CaptureDetections>();
   frame->capture.source_id = "fixture"; frame->capture.generation = generation; frame->capture.stream_id = "rgbd";
   frame->capture.sequence = sequence; frame->capture.acquisition_ns = monotonic_ns() - 1000000;
   frame->capture.received_ns = monotonic_ns(); frame->capture.clock_domain = local_clock_domain();
@@ -25,25 +25,25 @@ std::pair<Frame::SharedPtr, Batch::SharedPtr> fixture(uint64_t sequence, const s
   image.header.stamp = rclcpp::Time(frame->capture.acquisition_ns + frame->capture.unix_offset_ns);
   image.width = 640; image.height = 480; image.step = 640*3; image.encoding = "bgr8";
   image.data.assign(image.step*image.height, 100);
-  batch->capture = frame->capture; batch->calibration_id = frame->calibration_id;
-  batch->source_width = 640; batch->source_height = 480; batch->model_id = "fixture_cones";
-  batch->max_frame_age_ns = 2000000000;
-  batch->detections.header = image.header;
+  capture_detections->capture = frame->capture; capture_detections->calibration_id = frame->calibration_id;
+  capture_detections->source_width = 640; capture_detections->source_height = 480; capture_detections->model_id = "fixture_cones";
+  capture_detections->max_frame_age_ns = 2000000000;
+  capture_detections->detections.header = image.header;
   vision_msgs::msg::Detection2D detection;
   detection.header = image.header; detection.bbox.center.position.x = 320; detection.bbox.center.position.y = 240;
   detection.bbox.size_x = detection.bbox.size_y = 160;
   vision_msgs::msg::ObjectHypothesisWithPose result;
   result.hypothesis.class_id = "bottle"; result.hypothesis.score = .75;
-  detection.results.push_back(result); batch->detections.detections.push_back(detection);
+  detection.results.push_back(result); capture_detections->detections.detections.push_back(detection);
   rgbd_object_detector_interfaces::msg::Spatial spatial;
   spatial.valid = false; spatial.invalid_reason = "insufficient_depth"; spatial.position.x = spatial.position.y = spatial.position.z = NAN;
-  batch->spatial.push_back(spatial);
-  return {frame, batch};
+  capture_detections->spatial.push_back(spatial);
+  return {frame, capture_detections};
 }
 void rendering() {
-  const auto [frame, batch] = fixture(1234);
+  const auto [frame, capture_detections] = fixture(1234);
   const auto original = frame->rgb;
-  auto output = render_overlay(frame->rgb, *batch, true, true);
+  auto output = render_overlay(frame->rgb, *capture_detections, true, true);
   check(frame->rgb == original && output->header == original.header && output->step == original.step,
         "rendering mutated source or acquisition metadata");
   // Probe the middle of the left edge; the class label covers the top corner.
@@ -60,12 +60,12 @@ void rendering() {
   for (int i = 0; i < 4; ++i) sequence |= uint32_t(bytes[9+i]) << (8*i);
   check(bytes[0] == 0xA5 && sequence == 1234 && stamp == uint64_t(rclcpp::Time(original.header.stamp).nanoseconds()),
         "measurement marker lost capture identity/acquisition time");
-  batch->detections.detections.clear(); batch->spatial.clear();
-  output = render_overlay(frame->rgb, *batch, false, false);
+  capture_detections->detections.detections.clear(); capture_detections->spatial.clear();
+  output = render_overlay(frame->rgb, *capture_detections, false, false);
   check(output->data[border] == 100, "empty result retained previous overlay pixels");
-  batch->detections.header.frame_id = "unrelated";
+  capture_detections->detections.header.frame_id = "unrelated";
   bool rejected = false;
-  try { render_overlay(frame->rgb, *batch, false, false); } catch (const std::exception&) { rejected = true; }
+  try { render_overlay(frame->rgb, *capture_detections, false, false); } catch (const std::exception&) { rejected = true; }
   check(rejected, "unrelated image header accepted");
 }
 void worker() {
@@ -75,10 +75,10 @@ void worker() {
   auto subscription = node->create_subscription<Overlay>("/overlay_fixture/overlay/frame", rclcpp::SensorDataQoS().keep_last(1),
       [&](Overlay::ConstSharedPtr message) { images.push_back(message); });
   std::atomic<bool> held{true}; std::atomic<int> entered{0};
-  OverlayWorker output(*node, true, false, [&](const auto& image, const auto& batch, bool spatial, bool capture_marker) {
+  OverlayWorker output(*node, true, false, [&](const auto& image, const auto& capture_detections, bool spatial, bool capture_marker) {
     ++entered;
     while (held) std::this_thread::sleep_for(1ms);
-    return render_overlay(image, batch, spatial, capture_marker);
+    return render_overlay(image, capture_detections, spatial, capture_marker);
   });
   struct ReleaseHold { std::atomic<bool>& held; ~ReleaseHold() { held = false; } } release{held};
   auto until = [&](auto condition, const char* error, bool spin = true) {
@@ -90,7 +90,7 @@ void worker() {
     if (!condition()) { held = false; throw std::runtime_error(error); }
   };
   output.invalidate(1);
-  auto [first, batch] = fixture(1); output.submit(first, batch, 1);
+  auto [first, capture_detections] = fixture(1); output.submit(first, capture_detections, 1);
   until([&] { return entered == 1; }, "presentation worker did not begin");
   for (int sequence = 2; sequence <= 10; ++sequence) {
     auto pair = fixture(sequence); output.submit(pair.first, pair.second, 1);
@@ -100,7 +100,7 @@ void worker() {
   auto latest = fixture(11, "B"); output.submit(latest.first, latest.second, 2);
   held = false;
   until([&] { return images.size() == 1; }, "new-generation overlay missing");
-  check(images[0]->batch.capture.generation == "B" && images[0]->batch.capture.sequence == 11 &&
+  check(images[0]->capture_detections.capture.generation == "B" && images[0]->capture_detections.capture.sequence == 11 &&
         output.statistics().superseded == 2, "old-generation overlay escaped invalidation");
   // Stop servicing the subscriber. The worker must keep publishing/replacing
   // independently of reader callback progress, with no retained FIFO growth.
@@ -109,7 +109,7 @@ void worker() {
     until([&] { return output.statistics().rendered == uint64_t(sequence-10); }, "slow reader stalled rendering", false);
   }
   until([&] { return images.size() == 2; }, "latest overlay not delivered after slow reader resumed");
-  check(images.back()->batch.capture.sequence == 16 && output.statistics().pending == 0,
+  check(images.back()->capture_detections.capture.sequence == 16 && output.statistics().pending == 0,
         "slow reader retained old overlay backlog");
   auto stale = fixture(17, "B"); stale.second->max_frame_age_ns = 1;
   output.submit(stale.first, stale.second, 2);

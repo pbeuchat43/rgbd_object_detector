@@ -1,12 +1,12 @@
 <?xml version="1.0"?>
 <package format="3">
-  <name>rgbd_object_detector</name><version>0.1.0</version>
+  <name>rgbd_object_detector</name><version>0.2.0</version>
   <description>Bounded TensorRT cone detection and exact-bundle depth-derived spatial estimates.</description>
   <maintainer email="pbeuchat@unimelb.edu.au">Paul N. Beuchat</maintainer>
   <license>MIT</license>
   <buildtool_depend>ament_cmake</buildtool_depend>
   <depend>ament_index_cpp</depend><depend>rclcpp</depend><depend>rclcpp_components</depend><depend>rcl_interfaces</depend>
-  <depend>rgbd_camera_interfaces</depend><depend>rgbd_object_detector_interfaces</depend>
+  <depend>rgbd_camera_interfaces</depend><depend version_gte="0.2.0">rgbd_object_detector_interfaces</depend>
   <depend>vision_msgs</depend><depend>libopencv-dev</depend><depend>openssl</depend>
   <exec_depend>launch_ros</exec_depend>
   <test_depend>rclpy</test_depend>

@@ -1,8 +1,8 @@
-# The index is local to Batch.detections.detections; never a tracking ID.
+# The index is local to CaptureDetections.detections.detections; never a tracking ID.
 uint32 detection_index
 bool valid
 string invalid_reason
-# Metres in the batch optical frame; all NaN when invalid.
+# Metres in the result's optical frame; all NaN when invalid.
 geometry_msgs/Point position
 string method
 float64 pixel_u

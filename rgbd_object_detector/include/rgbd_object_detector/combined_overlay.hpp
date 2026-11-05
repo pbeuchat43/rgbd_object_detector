@@ -11,10 +11,10 @@ namespace rgbd_object_detector {
 class CombinedOverlayNode : public rclcpp::Node {
  public:
   using Frame = rgbd_camera_interfaces::msg::Frame;
-  using Batch = rgbd_object_detector_interfaces::msg::Batch;
+  using CaptureDetections = rgbd_object_detector_interfaces::msg::CaptureDetections;
   using Status = rgbd_object_detector_interfaces::msg::CombinedOverlayStatus;
   using Render = std::function<std::unique_ptr<sensor_msgs::msg::Image>(
-      const sensor_msgs::msg::Image&, const Batch&, const Batch&, bool, bool)>;
+      const sensor_msgs::msg::Image&, const CaptureDetections&, const CaptureDetections&, bool, bool)>;
   explicit CombinedOverlayNode(const rclcpp::NodeOptions& options = rclcpp::NodeOptions(),
                                Render renderer = render_combined_overlay);
   ~CombinedOverlayNode() override;
@@ -22,12 +22,12 @@ class CombinedOverlayNode : public rclcpp::Node {
  private:
   struct Entry {
     Frame::ConstSharedPtr frame;
-    std::array<Batch::ConstSharedPtr, 2> batches;
+    std::array<CaptureDetections::ConstSharedPtr, 2> capture_detections;
     int64_t acquisition_ns = 0;
   };
   struct Job { Entry entry; uint64_t epoch; };
   void receive_frame(Frame::ConstSharedPtr frame);
-  void receive_batch(size_t index, Batch::ConstSharedPtr batch);
+  void receive_capture_detections(size_t index, CaptureDetections::ConstSharedPtr capture_detections);
   bool capture_valid(const rgbd_camera_interfaces::msg::CaptureReference& capture, int64_t now) const;
   bool has_consumers() const;
   bool fresh(const Entry& entry, int64_t now) const;
@@ -40,8 +40,8 @@ class CombinedOverlayNode : public rclcpp::Node {
   size_t capacity_;
   int64_t max_age_ns_, last_frame_acquisition_ = 0, last_output_deadline_ = 0;
   uint64_t last_frame_sequence_ = 0, last_matched_sequence_ = 0;
-  std::array<uint64_t, 2> last_batch_sequence_{};
-  std::array<bool, 2> have_batch_{};
+  std::array<uint64_t, 2> last_capture_detections_sequence_{};
+  std::array<bool, 2> have_capture_detections_{};
   std::array<std::string, 2> model_identity_;
   std::string calibration_;
   Render renderer_;
@@ -53,7 +53,7 @@ class CombinedOverlayNode : public rclcpp::Node {
   std::unique_ptr<Job> pending_;
   Status status_;
   rclcpp::Subscription<Frame>::SharedPtr input_;
-  std::array<rclcpp::Subscription<Batch>::SharedPtr, 2> batches_;
+  std::array<rclcpp::Subscription<CaptureDetections>::SharedPtr, 2> capture_detections_;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr images_;
   rclcpp::Publisher<rgbd_object_detector_interfaces::msg::CombinedOverlayFrame>::SharedPtr frames_;
   rclcpp::Publisher<Status>::SharedPtr statuses_;
