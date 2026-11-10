@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="3">
-  <name>rgbd_object_detector</name><version>0.2.0</version>
+  <name>rgbd_object_detector</name><version>0.2.1</version>
   <description>Bounded TensorRT cone detection and exact-bundle depth-derived spatial estimates.</description>
   <maintainer email="pbeuchat@unimelb.edu.au">Paul N. Beuchat</maintainer>
   <license>MIT</license>

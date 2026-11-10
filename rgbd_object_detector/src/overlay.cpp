@@ -181,13 +181,19 @@ void OverlayWorker::run() {
       // Publication and rendering never hold the queue mutex. A slow external
       // subscriber cannot make inference wait for rendering or middleware work.
       if (image && !superseded && !stale && !stopping_) {
-        if (frames_->get_subscription_count() + frames_->get_intra_process_subscription_count() > 0) {
+        const bool atomic_demand = frames_->get_subscription_count() + frames_->get_intra_process_subscription_count() > 0;
+        const bool image_demand = images_->get_subscription_count() + images_->get_intra_process_subscription_count() > 0;
+        if (atomic_demand) {
           auto atomic = std::make_unique<rgbd_object_detector_interfaces::msg::OverlayFrame>();
-          atomic->capture_detections = capture_detections; atomic->image = *image;
+          atomic->capture_detections = capture_detections;
+          // Snapshot both demands: subscription churn must not publish a
+          // moved-from image. Atomic-only consumers retain the rendered buffer.
+          if (image_demand) atomic->image = *image;
+          else atomic->image = std::move(*image);
           atomic->render_started_ns = started; atomic->render_completed_ns = completed;
           frames_->publish(std::move(atomic));
         }
-        images_->publish(std::move(image));
+        if (image_demand) images_->publish(std::move(image));
         std::lock_guard<std::mutex> lock(mutex_);
         ++statistics_.rendered; statistics_.last_render_ns = completed - started;
         if (job->epoch == epoch_.load()) statistics_.last_acquisition_ns = capture_detections.capture.acquisition_ns;

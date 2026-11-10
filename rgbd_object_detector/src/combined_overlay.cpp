@@ -160,13 +160,18 @@ void CombinedOverlayNode::run() {
         completed = monotonic_ns();
         // Never hold the join mutex during drawing or middleware publication.
         if (job->epoch == epoch_.load() && fresh(e, completed) && has_consumers() && !stopping_) {
-          if (frames_->get_subscription_count() + frames_->get_intra_process_subscription_count() > 0) {
+          const bool atomic_demand = frames_->get_subscription_count() + frames_->get_intra_process_subscription_count() > 0;
+          const bool image_demand = images_->get_subscription_count() + images_->get_intra_process_subscription_count() > 0;
+          if (atomic_demand) {
             auto atomic = std::make_unique<rgbd_object_detector_interfaces::msg::CombinedOverlayFrame>();
-            atomic->capture_detections = {*e.capture_detections[0], *e.capture_detections[1]}; atomic->image = *image;
+            atomic->capture_detections = {*e.capture_detections[0], *e.capture_detections[1]};
+            if (image_demand) atomic->image = *image;
+            else atomic->image = std::move(*image);
             atomic->render_started_ns = started; atomic->render_completed_ns = completed;
             frames_->publish(std::move(atomic));
           }
-          images_->publish(std::move(image)); rendered = true;
+          if (image_demand) images_->publish(std::move(image));
+          rendered = true;
         }
       }
     } catch (const std::exception& failure) { error = failure.what(); }
