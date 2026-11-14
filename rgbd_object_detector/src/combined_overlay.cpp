@@ -41,7 +41,7 @@ bool CombinedOverlayNode::has_consumers() const {
       frames_->get_subscription_count() + frames_->get_intra_process_subscription_count() > 0;
 }
 bool CombinedOverlayNode::capture_valid(const rgbd_camera_interfaces::msg::CaptureReference& c, int64_t now) const {
-  return c.schema_version == 1 && !c.source_id.empty() && c.source_id.size() <= 128 &&
+  return c.schema_version == 2 && !c.source_id.empty() && c.source_id.size() <= 128 &&
       !c.generation.empty() && c.generation.size() <= 128 && c.stream_id == "rgbd" &&
       c.clock_domain == status_.clock_domain && c.acquisition_ns > 0 && c.acquisition_ns <= now &&
       now - c.acquisition_ns <= max_age_ns_ && c.received_ns >= c.acquisition_ns && c.received_ns <= now;
@@ -90,7 +90,7 @@ void CombinedOverlayNode::receive_capture_detections(size_t index, CaptureDetect
   std::lock_guard<std::mutex> lock(mutex_); ++status_.received[index+1];
   const auto& c = capture_detections->capture;
   if (!have_frame_ || !capture_valid(c, now) || c.source_id != status_.source_id || c.generation != status_.generation ||
-      capture_detections->schema_version != 1 || capture_detections->calibration_id != calibration_ || capture_detections->max_frame_age_ns <= 0 ||
+      capture_detections->schema_version != 2 || capture_detections->calibration_id != calibration_ || capture_detections->max_frame_age_ns <= 0 ||
       capture_detections->max_frame_age_ns > 2000000000LL || now - c.acquisition_ns > capture_detections->max_frame_age_ns ||
       capture_detections->model_id.empty() || capture_detections->model_id.size() > 128 || capture_detections->model_sha256.size() > 64 ||
       capture_detections->model_profile_sha256.size() > 64 || capture_detections->engine_sha256.size() > 64 ||
@@ -114,6 +114,8 @@ void CombinedOverlayNode::join(uint64_t sequence) {
     for (const auto& capture_detections : e.capture_detections) {
       if (capture_detections->capture != f.capture || capture_detections->calibration_id != f.calibration_id || capture_detections->camera_backend != f.backend ||
           capture_detections->depth_sequence != f.depth_sequence || capture_detections->depth_acquisition_ns != f.depth_acquisition_ns ||
+          capture_detections->depth_exposure_midpoint_ns != f.depth_exposure_midpoint_ns ||
+          capture_detections->depth_exposure_duration_ns != f.depth_exposure_duration_ns ||
           capture_detections->skew_ns != f.skew_ns || capture_detections->pairing_tolerance_ns != f.pairing_tolerance_ns ||
           capture_detections->detections.header != f.rgb.header || capture_detections->source_width != f.rgb.width || capture_detections->source_height != f.rgb.height) {
         entries_.erase(it); ++status_.rejected; return;

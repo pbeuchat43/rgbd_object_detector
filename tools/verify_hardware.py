@@ -113,7 +113,7 @@ class Observer(Node):
     def receive_capture_detections(self, message):
         now = time.monotonic_ns()
         capture = message.capture
-        check(message.schema_version == 1 and message.model_sha256 == MODEL_HASH and message.engine_sha256 == self.engine_hash,
+        check(message.schema_version == 2 and message.model_sha256 == MODEL_HASH and message.engine_sha256 == self.engine_hash,
               'capture result model/artifact identity mismatch')
         check(capture.clock_domain == 'linux_monotonic:' + Path('/proc/sys/kernel/random/boot_id').read_text().strip(), 'wrong clock')
         check(capture.sequence > self.last_sequence.get(capture.generation, -1), 'duplicate/regressed output sequence')

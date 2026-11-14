@@ -5,8 +5,13 @@
 camera SDKs. One `rgbd_object_detector::DetectorNode` is independently executable
 or composable; camera, inference and spatial logic retain separate ownership.
 
-Package version 0.2.0 uses `CaptureDetections`; its semantic `schema_version`
-remains 1. The [migration guide](capture-detections-migration.md) records the
+Package version 0.3.0 uses `CaptureDetections` schema 2, embedding camera
+CaptureReference schema 2. Explicit RGB and independent depth exposure midpoint/
+duration are copied from the actual input; legacy acquisition headers and pairing
+remain unchanged. Unknown exposure is zero, never substituted with receipt time.
+Overlays retain this metadata and reject mismatched depth exposure on combined
+results. Rebuild camera interfaces, detector, overlays and recorder together.
+The [migration guide](capture-detections-migration.md) records the earlier
 breaking ROS type/topic and embedded-field changes from 0.1.0.
 
 Optional presentation publishes an exact-source image and atomic `OverlayFrame`;

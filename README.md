@@ -22,6 +22,8 @@ software checks from live cone observations and record their limits. The initial
 0.1.0 was a development milestone, not a stable platform or accuracy claim.
 Version 0.2.0 renames the capture result interface and topics; see the
 [coordinated migration](docs/capture-detections-migration.md) before rebuilding consumers.
+Version 0.3.0 carries camera schema 2 exposure midpoint/duration through detections
+and overlays; rebuild the camera interfaces and recorder together.
 
 The [model profile guide](docs/model-profiles.md) covers the existing
 [cone model](models/cones.json) and pinned [YOLOv8n COCO model](models/yolov8n-coco80.json).

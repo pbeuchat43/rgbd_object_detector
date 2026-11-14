@@ -53,6 +53,12 @@ void rendering() {
   try { render_combined_overlay(original, *sample.capture_detections[0], *sample.capture_detections[1], false, false); }
   catch (const std::invalid_argument&) { rejected = true; }
   check(rejected, "incompatible pairing metadata accepted");
+  sample.capture_detections[1]->depth_sequence--;
+  sample.capture_detections[1]->depth_exposure_midpoint_ns = 123;
+  rejected = false;
+  try { render_combined_overlay(original, *sample.capture_detections[0], *sample.capture_detections[1], false, false); }
+  catch (const std::invalid_argument&) { rejected = true; }
+  check(rejected, "different exposure metadata accepted");
 }
 struct Harness {
   std::atomic<bool> held{false}; std::atomic<int> entered{0};

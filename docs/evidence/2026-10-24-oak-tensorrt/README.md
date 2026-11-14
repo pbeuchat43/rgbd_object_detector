@@ -10,7 +10,9 @@ Engines and weights are not distributed by this repository.
 
 `source-sha256.json` identifies the implementation, interfaces, launch file, model
 descriptor and verification tools. Raw logs, images, host/device identities,
-binary hashes and preservation audits are retained in a private local archive.
+binary hashes and preservation audits were retained in a private local archive.
+That local archive was later intentionally discarded. Availability of any copies
+on Jah has not been checked.
 No installed deployment was migrated by these checks.
 
 ## Software checks

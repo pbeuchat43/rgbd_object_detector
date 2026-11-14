@@ -16,8 +16,9 @@ Eight saved images were processed by each model: retained D455 and OAK captures,
 two ordinary-object reference photos resized to both 640×480 and 640×640, and
 black images at both dimensions. Reference photos and black images are fixtures,
 not new hardware scene observations. Camera images were retained from the prior
-lit stationary-scene campaign. Private imagery and raw tensors stay in the task
-archive.
+lit stationary-scene campaign. Private imagery and raw tensors were kept in the
+task archive. The local historical copies were later intentionally discarded.
+Availability of any copies on Jah has not been checked.
 
 | Comparison | Cone model | YOLOv8n COCO |
 | --- | ---: | ---: |
@@ -37,7 +38,7 @@ The first reference attempt stopped because ONNX Runtime 1.20.1 CPU produced
 `-5.960464477539063e-08`. The reference-only decoder now records and bounds such
 roundoff to 1e-6 before clipping to the mathematical probability range. Larger
 violations and nonfinite values still fail; production validation was not relaxed.
-The original failed attempt and diagnostic remain in the private archive.
+The original failed attempt and diagnostic were recorded in the private archive.
 
 Five negative engine checks passed: wrong selected model, profile hash, model
 hash, engine hash, and an attempted general-model legacy manifest. The archived

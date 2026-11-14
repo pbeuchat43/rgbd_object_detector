@@ -61,13 +61,20 @@ void validate_stamp(const std_msgs::msg::Header& header, int64_t acquired, int64
 }
 void validate_frame(const Frame& frame, const std::string& clock, int64_t now) {
   const auto& capture = frame.capture;
-  require(capture.schema_version == 1 && !capture.source_id.empty() && capture.source_id.size() <= 256 &&
+  require(capture.schema_version == 2 && !capture.source_id.empty() && capture.source_id.size() <= 256 &&
           !capture.generation.empty() && capture.generation.size() <= 128 && capture.stream_id == "rgbd",
           "invalid capture identity");
   require(capture.clock_domain == clock, "unsupported_clock_domain");
   require(capture.acquisition_ns > 0 && frame.depth_acquisition_ns > 0 &&
           capture.acquisition_ns <= capture.received_ns && frame.depth_acquisition_ns <= capture.received_ns &&
           capture.received_ns <= now, "invalid or future acquisition/receipt time");
+  const auto exposure_valid = [&](int64_t midpoint, int64_t duration) {
+    return midpoint >= 0 && midpoint <= capture.received_ns && duration >= 0 &&
+        duration <= 1000000000 && (duration == 0 || midpoint > 0);
+  };
+  require(exposure_valid(capture.exposure_midpoint_ns, capture.exposure_duration_ns) &&
+          exposure_valid(frame.depth_exposure_midpoint_ns, frame.depth_exposure_duration_ns),
+          "invalid exposure timing");
   require(frame.pairing_tolerance_ns > 0 && frame.pairing_tolerance_ns <= 50000000 &&
           frame.skew_ns == frame.depth_acquisition_ns - capture.acquisition_ns &&
           std::abs(frame.skew_ns) <= frame.pairing_tolerance_ns, "invalid_pairing");
@@ -90,6 +97,8 @@ std::unique_ptr<CaptureDetections> make_capture_detections(const Frame& frame, c
   auto result = std::make_unique<CaptureDetections>();
   result->capture = frame.capture;
   result->depth_sequence = frame.depth_sequence; result->depth_acquisition_ns = frame.depth_acquisition_ns;
+  result->depth_exposure_midpoint_ns = frame.depth_exposure_midpoint_ns;
+  result->depth_exposure_duration_ns = frame.depth_exposure_duration_ns;
   result->skew_ns = frame.skew_ns; result->pairing_tolerance_ns = frame.pairing_tolerance_ns;
   result->calibration_id = frame.calibration_id; result->camera_backend = frame.backend;
   result->model_id = backend.model_id; result->model_sha256 = backend.model_sha256;

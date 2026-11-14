@@ -101,6 +101,8 @@ std::unique_ptr<sensor_msgs::msg::Image> render_combined_overlay(const sensor_ms
     const rgbd_object_detector_interfaces::msg::CaptureDetections& second, bool spatial, bool capture_marker) {
   if (first.capture != second.capture || first.calibration_id != second.calibration_id ||
       first.depth_sequence != second.depth_sequence || first.depth_acquisition_ns != second.depth_acquisition_ns ||
+      first.depth_exposure_midpoint_ns != second.depth_exposure_midpoint_ns ||
+      first.depth_exposure_duration_ns != second.depth_exposure_duration_ns ||
       first.skew_ns != second.skew_ns || first.pairing_tolerance_ns != second.pairing_tolerance_ns ||
       first.camera_backend != second.camera_backend)
     throw std::invalid_argument("combined overlay requires identical capture and pairing metadata");

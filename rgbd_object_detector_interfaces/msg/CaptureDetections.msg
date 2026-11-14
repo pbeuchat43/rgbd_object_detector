@@ -1,8 +1,10 @@
 # One model's results for one exact capture, including a successful empty result.
-uint16 schema_version 1
+uint16 schema_version 2
 rgbd_camera_interfaces/CaptureReference capture
 uint64 depth_sequence
 int64 depth_acquisition_ns
+int64 depth_exposure_midpoint_ns
+int64 depth_exposure_duration_ns
 int64 skew_ns
 int64 pairing_tolerance_ns
 string calibration_id

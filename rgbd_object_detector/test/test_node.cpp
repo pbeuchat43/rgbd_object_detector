@@ -58,6 +58,10 @@ Frame fixture(uint64_t sequence, uint16_t depth = 2000, const std::string& gener
   frame.capture.sequence = sequence; frame.capture.acquisition_ns = now - 1000000; frame.capture.received_ns = now;
   frame.capture.clock_domain = local_clock_domain(); frame.capture.unix_offset_ns = 1700000000000000000LL;
   frame.depth_sequence = sequence + 100; frame.depth_acquisition_ns = frame.capture.acquisition_ns + 100000;
+  frame.capture.exposure_midpoint_ns = frame.capture.acquisition_ns + 200000;
+  frame.capture.exposure_duration_ns = 400000;
+  frame.depth_exposure_midpoint_ns = frame.depth_acquisition_ns;
+  frame.depth_exposure_duration_ns = 100000;
   frame.skew_ns = 100000; frame.pairing_tolerance_ns = 5000000;
   frame.calibration_id = "calibration_" + generation; frame.backend = "fixture_camera";
   frame.alignment = "aligned_to_rgb"; frame.depth_convention = "optical_z"; frame.depth_unit_m = .001;
@@ -133,6 +137,9 @@ void output_and_validation() {
   const auto input = fixture(1);
   h.send(input); h.until([&] { return h.capture_detections.size() == 1; }, "no valid capture result");
   const auto& capture_detections = *h.capture_detections[0];
+  check(capture_detections.schema_version == 2 &&
+        capture_detections.depth_exposure_midpoint_ns == input.depth_exposure_midpoint_ns &&
+        capture_detections.depth_exposure_duration_ns == input.depth_exposure_duration_ns, "depth exposure metadata lost");
   check(capture_detections.capture == input.capture && capture_detections.depth_sequence == 101 && capture_detections.depth_acquisition_ns == input.depth_acquisition_ns &&
         capture_detections.calibration_id == input.calibration_id && capture_detections.detections.header == input.rgb.header, "source association lost");
   check(capture_detections.detections.detections.size() == 1 && capture_detections.spatial.size() == 1 && capture_detections.spatial[0].valid &&
